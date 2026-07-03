@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+/// A Campaign represents one send-run fetched from SharePoint.
+/// Contacts are no longer stored from Excel — they come live from SharePoint.
+model Campaign {
+  id           String      @id @default(uuid())
+  name         String
+  status       String      @default("processing") // processing | completed | failed
+  templateId   String      @map("template_id")
+  template     Template    @relation(fields: [templateId], references: [id])
+
+  // Delivery stats
+  totalCount   Int         @default(0) @map("total_count")
+  sentCount    Int         @default(0) @map("sent_count")
+  failedCount  Int         @default(0) @map("failed_count")
+  pendingCount Int         @default(0) @map("pending_count")
+  skippedCount Int         @default(0) @map("skipped_count")
+
+  recipients   Recipient[]
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt      @map("updated_at")
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("campaigns")
+}
+
+/// A Recipient is one contact within a Campaign.
+model Recipient {
+  id         String    @id @default(uuid())
+  name       String
+  email      String
+  status     String    @default("pending") // pending | sent | failed | skipped
+  error      String?
+  sentAt     DateTime? @map("sent_at")
+  campaignId String    @map("campaign_id")
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([campaignId])
+  @@index([campaignId, status])
+  @@index([email])
+  @@index([status])
+  @@map("recipients")
+}
+
+model Unsubscribed {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("unsubscribed")
+}
+
+model Template {
+  id            String     @id @default(uuid())
+  name          String
+  subject       String
+  htmlBody      String     @map("html_body")
+  plainTextBody String     @map("plain_text_body")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt      @map("updated_at")
+  campaigns     Campaign[]
+
+  @@map("templates")
+}
+
+/// A SharePoint list configuration managed dynamically from the UI.
+/// Credentials default to root .env values if left null.
+model SharePointConfig {
+  id           String   @id @default(uuid())
+  name         String                          // Human-readable label e.g. "Marketing List"
+  siteId       String   @map("site_id")        // e.g. tenant.sharepoint.com,abc,def
+  listId       String   @map("list_id")        // GUID of the SharePoint list
+  tenantId     String?  @map("tenant_id")      // null → fallback to TENANT_ID env var
+  clientId     String?  @map("client_id")      // null → fallback to SP_CLIENT_ID env var
+  clientSecret String?  @map("client_secret")  // null → fallback to SP_CLIENT_SECRET env var
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0)   @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt      @map("updated_at")
+
+  @@index([isActive])
+  @@map("sharepoint_configs")
+}
+
