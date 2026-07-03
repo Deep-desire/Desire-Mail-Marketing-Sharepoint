@@ -34,6 +34,7 @@ export interface SPContact {
   email: string;
   status: 'valid' | 'invalid' | 'duplicate' | 'unsubscribed';
   reason: string | null;
+  itemId?: string;
 }
 
 /** Response from GET /sharepoint/contacts */

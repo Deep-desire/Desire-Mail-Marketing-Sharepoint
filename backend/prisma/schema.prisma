@@ -27,6 +27,7 @@ model Campaign {
   status       String      @default("processing") // processing | completed | failed
   templateId   String      @map("template_id")
   template     Template    @relation(fields: [templateId], references: [id])
+  configId     String?     @map("config_id")
 
   // Delivery stats
   totalCount   Int         @default(0) @map("total_count")
@@ -46,15 +47,20 @@ model Campaign {
 
 /// A Recipient is one contact within a Campaign.
 model Recipient {
-  id         String    @id @default(uuid())
-  name       String
-  email      String
-  status     String    @default("pending") // pending | sent | failed | skipped
-  error      String?
-  sentAt     DateTime? @map("sent_at")
-  campaignId String    @map("campaign_id")
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id           String    @id @default(uuid())
+  name         String
+  email        String
+  status       String    @default("pending") // pending | sent | failed | skipped
+  error        String?
+  sentAt       DateTime? @map("sent_at")
+  spItemId     String?   @map("sp_item_id")
+  // Snapshot of SharePoint item's modifiedAt at time of campaign inclusion.
+  // Used by incremental sync to detect real data changes, without being poisoned
+  // by our own EmailSent write-back which also updates the item's Modified timestamp.
+  spModifiedAt DateTime? @map("sp_modified_at")
+  campaignId   String    @map("campaign_id")
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   @@index([campaignId])
   @@index([campaignId, status])

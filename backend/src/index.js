@@ -6,7 +6,7 @@ const { prisma } = require('./prisma');
 const { generateToken, comparePassword, authenticate } = require('./auth');
 const { sendEmail } = require('./email');
 const { renderTemplate, invalidateTemplate } = require('./templates-service');
-const { getSharePointContacts, discoverFields, testConnection } = require('./sharepoint');
+const { getSharePointContacts, discoverFields, testConnection, updateSharePointEmailSent } = require('./sharepoint');
 
 require('dotenv').config();
 
@@ -157,26 +157,55 @@ apiRouter.get('/auth/me', catchAsync(async (req, res) => {
 // ─────────────────────────────────────────────
 
 // --- Helper: Reconcile live SharePoint contacts with database logs ---
-async function reconcileContacts(allContacts, syncMode) {
+// configId: optional — when provided, incremental mode only checks sends from THIS list's campaigns.
+// This is critical: a contact sent via "Demo List" must still appear as NEW in "Lead List".
+async function reconcileContacts(allContacts, syncMode, configId = null) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const unsubSet = await getUnsubscribedSet();
 
   let filteredContacts = allContacts;
 
   if (syncMode === 'incremental') {
-    // Query the latest recipient status for every email in the database using DISTINCT ON
-    const latestRecipients = await prisma.$queryRaw`
-      SELECT DISTINCT ON (email) email, status, created_at AS "createdAt", sent_at AS "sentAt"
-      FROM recipients
-      ORDER BY email, created_at DESC
-    `;
+    // Scope the history lookup to THIS specific SharePoint list config only.
+    // Without this, contacts sent via OTHER lists would appear as already-sent here.
+    let latestRecipients;
+
+    if (configId) {
+      // Scoped query: only look at recipients belonging to campaigns from this config.
+      // We also fetch sp_modified_at — the snapshot of SharePoint modifiedAt we stored
+      // at campaign-creation time. We compare the CURRENT SP modifiedAt against this
+      // stored snapshot, NOT against sentAt, because our own EmailSent write-back
+      // updates the SP item's Modified timestamp just after sentAt, causing false positives.
+      latestRecipients = await prisma.$queryRaw`
+        SELECT DISTINCT ON (LOWER(r.email))
+          LOWER(r.email)      AS email,
+          r.status,
+          r.sent_at           AS "sentAt",
+          r.sp_modified_at    AS "spModifiedAt"
+        FROM recipients r
+        INNER JOIN campaigns c ON c.id = r.campaign_id
+        WHERE c.config_id = ${configId}
+        ORDER BY LOWER(r.email) ASC, r.created_at DESC
+      `;
+    } else {
+      // No configId — fall back to global history (all campaigns)
+      latestRecipients = await prisma.$queryRaw`
+        SELECT DISTINCT ON (LOWER(email))
+          LOWER(email)        AS email,
+          status,
+          sent_at             AS "sentAt",
+          sp_modified_at      AS "spModifiedAt"
+        FROM recipients
+        ORDER BY LOWER(email) ASC, created_at DESC
+      `;
+    }
 
     const recipientMap = new Map();
     for (const r of latestRecipients) {
       recipientMap.set(r.email.toLowerCase(), {
-        status: r.status,
-        createdAt: r.createdAt,
-        sentAt: r.sentAt,
+        status:       r.status,
+        sentAt:       r.sentAt,
+        spModifiedAt: r.spModifiedAt,   // stored snapshot from last campaign
       });
     }
 
@@ -186,18 +215,27 @@ async function reconcileContacts(allContacts, syncMode) {
 
       const lastSend = recipientMap.get(email);
       if (!lastSend) {
-        return true; // 1. New contact
+        return true; // 1. New contact — never sent from this list
       }
 
       if (lastSend.status !== 'sent') {
-        return true; // 2. Failed/not sent successfully
+        return true; // 2. Previous attempt from this list failed / was skipped
       }
 
-      if (c.modifiedAt && new Date(c.modifiedAt) > new Date(lastSend.createdAt)) {
-        return true; // 3. Modified in SharePoint since last attempt
+      // 3. Detect REAL data changes: compare the current SP modifiedAt against the
+      //    snapshot we stored at the previous campaign creation.
+      //    We do NOT compare against sentAt because our EmailSent write-back updates
+      //    the SP item's Modified timestamp just seconds after the send, making
+      //    modifiedAt > sentAt always true and poisoning incremental forever.
+      if (lastSend.spModifiedAt && c.modifiedAt) {
+        const prevSnapshot  = new Date(lastSend.spModifiedAt);
+        const currentSPTime = new Date(c.modifiedAt);
+        if (currentSPTime > prevSnapshot) {
+          return true; // Real data change in SharePoint since last campaign inclusion
+        }
       }
 
-      return false; // already sent successfully and unmodified
+      return false; // Successfully sent from this list, no real data change — skip
     });
   }
 
@@ -211,22 +249,22 @@ async function reconcileContacts(allContacts, syncMode) {
 
     if (!email || !emailRegex.test(email)) {
       invalidCount++;
-      contacts.push({ name, email, status: 'invalid', reason: 'Invalid email format' });
+      contacts.push({ name, email, status: 'invalid', reason: 'Invalid email format', itemId: c.itemId, modifiedAt: c.modifiedAt || null });
       continue;
     }
     if (seenEmails.has(email)) {
       duplicateCount++;
-      contacts.push({ name, email, status: 'duplicate', reason: 'Duplicate email in list' });
+      contacts.push({ name, email, status: 'duplicate', reason: 'Duplicate email in list', itemId: c.itemId, modifiedAt: c.modifiedAt || null });
       continue;
     }
     seenEmails.add(email);
     if (unsubSet.has(email)) {
       unsubscribedCount++;
-      contacts.push({ name, email, status: 'unsubscribed', reason: 'Email is unsubscribed' });
+      contacts.push({ name, email, status: 'unsubscribed', reason: 'Email is unsubscribed', itemId: c.itemId, modifiedAt: c.modifiedAt || null });
       continue;
     }
     validCount++;
-    contacts.push({ name, email, status: 'valid', reason: null });
+    contacts.push({ name, email, status: 'valid', reason: null, itemId: c.itemId, modifiedAt: c.modifiedAt || null });
   }
 
   return {
@@ -352,7 +390,8 @@ apiRouter.get('/sharepoint/contacts', catchAsync(async (req, res) => {
   if (!configId) return res.status(400).json({ message: 'configId query parameter is required' });
 
   const allContacts = await getSharePointContacts(configId);
-  const result = await reconcileContacts(allContacts, mode);
+  // Pass configId so incremental mode scopes history to THIS list only
+  const result = await reconcileContacts(allContacts, mode, configId);
 
   return res.status(200).json(result);
 }));
@@ -407,14 +446,17 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
   const template = await prisma.template.findUnique({ where: { id: templateId } });
   if (!template) return res.status(404).json({ message: 'Template not found' });
 
-  // Use the provided contacts list if available; otherwise fetch live from SharePoint
+  // Use the provided contacts list if available; otherwise fetch live from SharePoint.
+  // IMPORTANT: when contacts come from the frontend (already-previewed list), we still
+  // honour syncMode and configId so incremental filtering is applied correctly.
   let reconciliation;
-  if (Array.isArray(contacts)) {
-    reconciliation = await reconcileContacts(contacts, 'full');
+  if (Array.isArray(contacts) && contacts.length > 0) {
+    // contacts already have itemId embedded from the preview step
+    reconciliation = await reconcileContacts(contacts, syncMode, configId || null);
   } else {
     if (!configId) return res.status(400).json({ message: 'configId is required when contacts are not provided' });
     const allContacts = await getSharePointContacts(configId);
-    reconciliation = await reconcileContacts(allContacts, syncMode);
+    reconciliation = await reconcileContacts(allContacts, syncMode, configId);
   }
 
   const recipientsToCreate = reconciliation.contacts
@@ -426,10 +468,14 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
         unsubscribed: 'skipped',
       };
       return {
-        name: c.name,
-        email: c.email,
-        status: statusMap[c.status] || 'pending',
-        error: c.reason,
+        name:         c.name,
+        email:        c.email,
+        status:       statusMap[c.status] || 'pending',
+        error:        c.reason,
+        spItemId:     c.itemId || null,
+        // Store the SP modifiedAt snapshot so incremental sync can compare against it
+        // on the NEXT run, without being confused by our own EmailSent write-back.
+        spModifiedAt: c.modifiedAt ? new Date(c.modifiedAt) : null,
       };
     });
 
@@ -438,6 +484,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
       name: name || `Campaign – ${new Date().toLocaleDateString()}`,
       templateId,
       status: 'processing',
+      configId: configId || null,
       totalCount: reconciliation.validCount,
       pendingCount: reconciliation.validCount,
       skippedCount: reconciliation.unsubscribedCount,
@@ -570,6 +617,13 @@ apiRouter.post('/campaigns/:id/send-batch', batchLimiter, catchAsync(async (req,
             where: { id: recipient.id },
             data: { status: 'sent', error: null, sentAt: new Date() },
           });
+
+          // Trigger SharePoint write-back in background if client configurations and itemId are present
+          if (campaign.configId && recipient.spItemId) {
+            updateSharePointEmailSent(campaign.configId, recipient.spItemId, new Date())
+              .catch(err => console.error(`[SharePoint Write-back Error] ${err.message}`));
+          }
+
           return { id: recipient.id, status: 'sent' };
         } catch (err) {
           attempts++;

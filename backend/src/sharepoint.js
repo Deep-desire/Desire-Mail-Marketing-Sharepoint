@@ -141,7 +141,7 @@ async function getSharePointContacts(configId) {
       const name_v = nameField  ? String(fields[nameField]  || '').trim() : '';
       const email  = emailField ? String(fields[emailField] || '').trim().toLowerCase() : '';
       const modifiedAt = item.lastModifiedDateTime || fields.Modified || new Date().toISOString();
-      return { name: name_v, email, modifiedAt };
+      return { name: name_v, email, modifiedAt, itemId: item.id };
     })
     .filter((c) => c.email);
 
@@ -174,4 +174,109 @@ async function discoverFields(configId) {
   return result.fields;
 }
 
-module.exports = { getSharePointContacts, getAccessToken, discoverFields, testConnection };
+// Cache of list IDs where we have verified or created the EmailSent column during this session
+const _listColumnsChecked = new Set();
+
+/**
+ * Verify if the EmailSent column exists in the list; if not, create it as a Single Line of Text column.
+ */
+async function ensureEmailSentColumnExists(siteId, listId, token) {
+  if (_listColumnsChecked.has(listId)) {
+    return;
+  }
+
+  try {
+    const columnsUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns`;
+    const res = await axios.get(columnsUrl, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    const columns = res.data.value || [];
+    const hasColumn = columns.some(
+      col => col.name === 'EmailSent' || col.displayName?.trim() === 'Email Sent'
+    );
+
+    if (!hasColumn) {
+      console.log(`[SharePoint Column Auto-Create] 'EmailSent' column not found in list '${listId}'. Creating...`);
+      await axios.post(
+        columnsUrl,
+        {
+          displayName: 'Email Sent',
+          name: 'EmailSent',
+          text: {} // Empty object indicates "Single line of text" column type
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log(`[SharePoint Column Auto-Create] Successfully created 'EmailSent' column in list '${listId}'.`);
+      // Provide a 1 second delay for SharePoint database replication/propagation
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    _listColumnsChecked.add(listId);
+  } catch (err) {
+    console.warn(`[SharePoint Column Auto-Create] Failed to verify/create 'EmailSent' column for list '${listId}': ${err.message}`);
+  }
+}
+
+/**
+ * Update the EmailSent field of a specific item in the SharePoint list.
+ * Fails silently with a warning if the list doesn't have an EmailSent column or is inaccessible.
+ */
+async function updateSharePointEmailSent(configId, itemId, sentDate = new Date()) {
+  try {
+    const dbConfig = await prisma.sharePointConfig.findUnique({ where: { id: configId } });
+    if (!dbConfig) {
+      console.warn(`[SharePoint Write-back] Config '${configId}' not found in database. Skipping write-back.`);
+      return;
+    }
+    const { tenantId, clientId, clientSecret, siteId, listId } = resolveCredentials(dbConfig);
+    if (!siteId || !listId) {
+      console.warn(`[SharePoint Write-back] Config '${dbConfig.name}' missing Site ID or List ID.`);
+      return;
+    }
+
+    const token = await getAccessToken(tenantId, clientId, clientSecret);
+
+    // Auto-create the column if it doesn't exist
+    await ensureEmailSentColumnExists(siteId, listId, token);
+
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/fields`;
+
+    // Format date as [DD/MM/YYYY] without time
+    const day = String(sentDate.getDate()).padStart(2, '0');
+    const month = String(sentDate.getMonth() + 1).padStart(2, '0');
+    const year = sentDate.getFullYear();
+    const formattedDate = `[${day}/${month}/${year}]`;
+
+    await axios.patch(
+      url,
+      {
+        EmailSent: formattedDate,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    console.log(`[SharePoint Write-back] Updated item ${itemId} in '${dbConfig.name}' with EmailSent: ${formattedDate}`);
+  } catch (err) {
+    console.warn(
+      `[SharePoint Write-back] Failed to update EmailSent for item ${itemId} on config ${configId}: ${err.message}`
+    );
+  }
+}
+
+module.exports = {
+  getSharePointContacts,
+  getAccessToken,
+  discoverFields,
+  testConnection,
+  updateSharePointEmailSent,
+};

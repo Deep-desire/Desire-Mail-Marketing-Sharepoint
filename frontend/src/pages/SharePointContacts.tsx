@@ -4,7 +4,7 @@ import {
   RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
   CheckCircle, AlertCircle, XCircle, MinusCircle,
   Users, Mail, Send, History, Trash2, X, AlertTriangle,
-  Calendar, Layers,
+  Calendar, Layers, Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/upload.api';
@@ -39,6 +39,7 @@ export default function SharePointContacts() {
   const [showAllContacts, setShowAllContacts] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'valid' | 'invalid' | 'duplicate' | 'unsubscribed'>('all');
   const [syncMode, setSyncMode] = useState<'incremental' | 'full'>('incremental');
+  const [searchQuery, setSearchQuery] = useState('');
   const [spConfigs, setSpConfigs] = useState<SharePointConfig[]>([]);
   const [selectedConfigId, setSelectedConfigId] = useState<string>('');
   const [loadingConfigs, setLoadingConfigs] = useState(true);
@@ -176,7 +177,7 @@ export default function SharePointContacts() {
         templateId: selectedTemplate,
         syncMode: syncMode,
         configId: selectedConfigId || undefined,
-        contacts: contacts.map(c => ({ name: c.name, email: c.email })), // Upload the finalized local state!
+        contacts: contacts.map(c => ({ name: c.name, email: c.email, itemId: c.itemId })), // Upload the finalized local state!
       });
 
       const campaignId = res.data.id;
@@ -204,7 +205,7 @@ export default function SharePointContacts() {
 
   // ── Local Recalculations for Edits & Deletes ──
   const recalculateContactsList = (
-    rawContacts: { name: string; email: string; status?: string; reason?: string | null }[],
+    rawContacts: { name: string; email: string; status?: string; reason?: string | null; itemId?: string }[],
     unsubSet: Set<string>
   ) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -215,22 +216,23 @@ export default function SharePointContacts() {
     const contactsList: SPContact[] = rawContacts.map((c) => {
       const email = c.email.toLowerCase().trim();
       const name = c.name.trim();
+      const itemId = c.itemId;
 
       if (!email || !emailRegex.test(email)) {
         invalidCount++;
-        return { name, email, status: 'invalid', reason: 'Invalid email format' };
+        return { name, email, status: 'invalid', reason: 'Invalid email format', itemId };
       }
       if (seenEmails.has(email)) {
         duplicateCount++;
-        return { name, email, status: 'duplicate', reason: 'Duplicate email in list' };
+        return { name, email, status: 'duplicate', reason: 'Duplicate email in list', itemId };
       }
       seenEmails.add(email);
       if (unsubSet.has(email)) {
         unsubscribedCount++;
-        return { name, email, status: 'unsubscribed', reason: 'Email is unsubscribed' };
+        return { name, email, status: 'unsubscribed', reason: 'Email is unsubscribed', itemId };
       }
       validCount++;
-      return { name, email, status: 'valid', reason: null };
+      return { name, email, status: 'valid', reason: null, itemId };
     });
 
     return {
@@ -286,6 +288,14 @@ export default function SharePointContacts() {
   // ── Filtered contacts ──
   const visibleContacts = contacts
     .filter((c) => filterStatus === 'all' || c.status === filterStatus)
+    .filter((c) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        c.name?.toLowerCase().includes(query) ||
+        c.email?.toLowerCase().includes(query)
+      );
+    })
     .slice(0, showAllContacts ? undefined : 20);
 
   const statusIcon = (status: string) => {
@@ -421,26 +431,48 @@ export default function SharePointContacts() {
 
           {/* Contacts table preview */}
           <div className="glass-card p-6 overflow-hidden">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
               <h2 className="section-title flex items-center gap-2">
                 <Mail className="w-4 h-4 text-brand-400" />
                 Contacts Preview
               </h2>
               {contacts.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-400">Filter:</label>
-                  <select
-                    id="contact-filter-select"
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value as any)}
-                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
-                  >
-                    <option value="all" className="bg-gray-900">All ({stats.total})</option>
-                    <option value="valid" className="bg-gray-900">Valid ({stats.validCount})</option>
-                    <option value="invalid" className="bg-gray-900">Invalid ({stats.invalidCount})</option>
-                    <option value="duplicate" className="bg-gray-900">Duplicate ({stats.duplicateCount})</option>
-                    <option value="unsubscribed" className="bg-gray-900">Unsubscribed ({stats.unsubscribedCount})</option>
-                  </select>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search name or email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 pl-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 w-full sm:w-56"
+                    />
+                    <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-400">Filter:</label>
+                    <select
+                      id="contact-filter-select"
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value as any)}
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                    >
+                      <option value="all" className="bg-gray-900">All ({stats.total})</option>
+                      <option value="valid" className="bg-gray-900">Valid ({stats.validCount})</option>
+                      <option value="invalid" className="bg-gray-900">Invalid ({stats.invalidCount})</option>
+                      <option value="duplicate" className="bg-gray-900">Duplicate ({stats.duplicateCount})</option>
+                      <option value="unsubscribed" className="bg-gray-900">Unsubscribed ({stats.unsubscribedCount})</option>
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
