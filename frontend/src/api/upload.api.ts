@@ -71,14 +71,14 @@ export const uploadApi = {
       skippedCount: number;
     }>(`/campaigns/${id}/stats`),
 
-  getCampaignRecipients: (id: string, page = 1, limit = 50) =>
+  getCampaignRecipients: (id: string, page = 1, limit = 50, status?: string) =>
     api.get<{
       recipients: Recipient[];
       total: number;
       page: number;
       limit: number;
       totalPages: number;
-    }>(`/campaigns/${id}/recipients`, { params: { page, limit } }),
+    }>(`/campaigns/${id}/recipients`, { params: { page, limit, status } }),
 
   sendCampaignBatch: (id: string, data: { recipientIds: string[] }) =>
     api.post<{ sent: number; failed: number }>(`/campaigns/${id}/send-batch`, data),

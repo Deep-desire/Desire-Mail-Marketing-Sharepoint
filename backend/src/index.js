@@ -543,16 +543,22 @@ apiRouter.get('/campaigns/:id/recipients', catchAsync(async (req, res) => {
   await authenticate(req);
   const page = parseInt(req.query.page || '1', 10);
   const limit = parseInt(req.query.limit || '50', 10);
+  const status = req.query.status;
   const skip = (page - 1) * limit;
+
+  const where = { campaignId: id };
+  if (status) {
+    where.status = status;
+  }
 
   const [recipients, total] = await Promise.all([
     prisma.recipient.findMany({
-      where: { campaignId: id },
+      where,
       skip,
       take: limit,
       orderBy: { createdAt: 'asc' },
     }),
-    prisma.recipient.count({ where: { campaignId: id } }),
+    prisma.recipient.count({ where }),
   ]);
 
   return res.status(200).json({
@@ -591,55 +597,67 @@ apiRouter.post('/campaigns/:id/send-batch', batchLimiter, catchAsync(async (req,
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-  const results = await Promise.all(
-    recipients.map(async (recipient) => {
-      const token = crypto
-        .createHash('sha256')
-        .update(recipient.email + 'desire-unsubscribe-salt')
-        .digest('hex')
-        .substring(0, 32);
-      const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}`;
+  const results = [];
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
-      const rendered = renderTemplate(
-        { id: template.id, subject: template.subject, htmlBody: template.htmlBody, plainTextBody: template.plainTextBody },
-        variables
-      );
+  for (let i = 0; i < recipients.length; i++) {
+    const recipient = recipients[i];
+    const token = crypto
+      .createHash('sha256')
+      .update(recipient.email + 'desire-unsubscribe-salt')
+      .digest('hex')
+      .substring(0, 32);
+    const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}`;
 
-      let attempts = 0;
-      const maxAttempts = 3;
-      let lastError = null;
+    const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
+    const rendered = renderTemplate(
+      { id: template.id, subject: template.subject, htmlBody: template.htmlBody, plainTextBody: template.plainTextBody },
+      variables
+    );
 
-      while (attempts < maxAttempts) {
-        try {
-          await sendEmail({ to: recipient.email, subject: rendered.subject, html: rendered.html, text: rendered.text });
-          await prisma.recipient.update({
-            where: { id: recipient.id },
-            data: { status: 'sent', error: null, sentAt: new Date() },
-          });
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastError = null;
+    let success = false;
 
-          // Trigger SharePoint write-back in background if client configurations and itemId are present
-          if (campaign.configId && recipient.spItemId) {
-            updateSharePointEmailSent(campaign.configId, recipient.spItemId, new Date())
-              .catch(err => console.error(`[SharePoint Write-back Error] ${err.message}`));
-          }
+    while (attempts < maxAttempts) {
+      try {
+        await sendEmail({ to: recipient.email, subject: rendered.subject, html: rendered.html, text: rendered.text });
+        await prisma.recipient.update({
+          where: { id: recipient.id },
+          data: { status: 'sent', error: null, sentAt: new Date() },
+        });
 
-          return { id: recipient.id, status: 'sent' };
-        } catch (err) {
-          attempts++;
-          lastError = err;
-          console.warn(`[Retry] Attempt ${attempts} failed for ${recipient.email}: ${err.message}`);
-          if (attempts < maxAttempts) await new Promise((r) => setTimeout(r, 2000));
+        // Trigger SharePoint write-back in background if client configurations and itemId are present
+        if (campaign.configId && recipient.spItemId) {
+          updateSharePointEmailSent(campaign.configId, recipient.spItemId, new Date())
+            .catch(err => console.error(`[SharePoint Write-back Error] ${err.message}`));
         }
-      }
 
+        results.push({ id: recipient.id, status: 'sent' });
+        success = true;
+        break;
+      } catch (err) {
+        attempts++;
+        lastError = err;
+        console.warn(`[Retry] Attempt ${attempts} failed for ${recipient.email}: ${err.message}`);
+        if (attempts < maxAttempts) await sleep(2000);
+      }
+    }
+
+    if (!success) {
       await prisma.recipient.update({
         where: { id: recipient.id },
         data: { status: 'failed', error: lastError?.message || 'All retry attempts failed' },
       });
-      return { id: recipient.id, status: 'failed' };
-    })
-  );
+      results.push({ id: recipient.id, status: 'failed' });
+    }
+
+    // Only inject individual send delay if it is NOT the last recipient in this batch
+    if (i < recipients.length - 1) {
+      await sleep(2500);
+    }
+  }
 
   let sentCount = 0, failedCount = 0;
   for (const r of results) {

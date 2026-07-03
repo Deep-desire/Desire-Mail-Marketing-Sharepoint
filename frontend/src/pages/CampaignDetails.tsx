@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -24,6 +24,7 @@ import { uploadApi } from '../api/upload.api';
 import { Campaign, Recipient } from '../types';
 
 const columnHelper = createColumnHelper<Recipient>();
+const activeSendingCampaigns = new Set<string>();
 
 export default function CampaignDetails() {
   const { id } = useParams<{ id: string }>();
@@ -34,8 +35,9 @@ export default function CampaignDetails() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; active: boolean } | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; active: boolean; status?: 'sending' | 'waiting' } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'sent' | 'failed' | 'pending' | 'skipped'>('all');
+
 
   // ── Recipient detail & edit modals state ──
   const [viewRecipient, setViewRecipient] = useState<Recipient | null>(null);
@@ -180,9 +182,11 @@ export default function CampaignDetails() {
 
   // Hook to handle active campaign sending if triggered on launch
   useEffect(() => {
-    if (!id || !campaign || !shouldLaunch || sending) return;
+    if (!id || !campaign || !shouldLaunch || sending || activeSendingCampaigns.has(id)) return;
+    activeSendingCampaigns.add(id);
 
     if (campaign.status !== 'processing') {
+      activeSendingCampaigns.delete(id);
       return;
     }
 
@@ -191,23 +195,31 @@ export default function CampaignDetails() {
       window.history.replaceState(null, '', `/campaigns/${id}`);
 
       try {
-        const initialRecipRes = await uploadApi.getCampaignRecipients(id, 1, 20);
-        const totalBatches = initialRecipRes.data.totalPages;
+        // Fetch the initial count of pending recipients to calculate exact batches to process
+        const pendingCountRes = await uploadApi.getCampaignRecipients(id, 1, 1, 'pending');
+        const totalPending = pendingCountRes.data.total;
+        const totalBatches = Math.ceil(totalPending / 5) || 1;
 
-        setBatchProgress({ current: 0, total: totalBatches, active: true });
+        setBatchProgress({ current: 0, total: totalBatches, active: true, status: 'sending' });
 
-        let page = 1;
-        let hasMore = true;
+        let currentBatch = 0;
+        let hasPending = totalPending > 0;
 
-        while (hasMore) {
-          const recipRes = page === 1 ? initialRecipRes : await uploadApi.getCampaignRecipients(id, page, 20);
-          const pending = recipRes.data.recipients.filter((r) => r.status === 'pending');
+        while (hasPending) {
+          // Always query page 1 of 'pending' status — sent items automatically fall out of this filter
+          const recipRes = await uploadApi.getCampaignRecipients(id, 1, 5, 'pending');
+          const pending = recipRes.data.recipients;
 
-          if (pending.length > 0) {
-            await uploadApi.sendCampaignBatch(id, { recipientIds: pending.map((r) => r.id) });
+          if (pending.length === 0) {
+            break;
           }
 
-          setBatchProgress({ current: page, total: totalBatches, active: true });
+          currentBatch++;
+          setBatchProgress({ current: currentBatch - 1, total: totalBatches, active: true, status: 'sending' });
+
+          await uploadApi.sendCampaignBatch(id, { recipientIds: pending.map((r) => r.id) });
+
+          setBatchProgress({ current: currentBatch, total: totalBatches, active: true, status: 'sending' });
 
           const [campRes, recRes] = await Promise.all([
             uploadApi.getCampaign(id),
@@ -216,11 +228,12 @@ export default function CampaignDetails() {
           setCampaign(campRes.data);
           setRecipients(recRes.data.recipients);
 
-          hasMore = page < recipRes.data.totalPages;
-          page++;
+          const checkPendingRes = await uploadApi.getCampaignRecipients(id, 1, 1, 'pending');
+          hasPending = checkPendingRes.data.total > 0;
 
-          if (hasMore) {
-            await new Promise((resolve) => setTimeout(resolve, 200));
+          if (hasPending) {
+            setBatchProgress({ current: currentBatch, total: totalBatches, active: true, status: 'waiting' });
+            await new Promise((resolve) => setTimeout(resolve, 15000));
           }
         }
 
@@ -238,6 +251,7 @@ export default function CampaignDetails() {
       } finally {
         setBatchProgress(null);
         setSending(false);
+        activeSendingCampaigns.delete(id);
       }
     };
 
@@ -334,7 +348,9 @@ export default function CampaignDetails() {
             <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
             <p className="text-sm text-blue-400 font-medium">
               {batchProgress && batchProgress.active
-                ? `Sending campaign emails... Batch ${batchProgress.current} of ${batchProgress.total} completed.`
+                ? batchProgress.status === 'waiting'
+                  ? `Batch ${batchProgress.current} of ${batchProgress.total} completed. Cooling down for 15s to keep mailbox safe...`
+                  : `Sending campaign emails... Batch ${batchProgress.current + 1} of ${batchProgress.total} in progress.`
                 : 'Campaign sending is currently in progress...'}
             </p>
           </div>
