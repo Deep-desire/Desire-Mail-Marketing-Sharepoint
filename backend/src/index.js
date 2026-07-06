@@ -159,45 +159,71 @@ apiRouter.get('/auth/me', catchAsync(async (req, res) => {
 // --- Helper: Reconcile live SharePoint contacts with database logs ---
 // configId: optional — when provided, incremental mode only checks sends from THIS list's campaigns.
 // This is critical: a contact sent via "Demo List" must still appear as NEW in "Lead List".
-async function reconcileContacts(allContacts, syncMode, configId = null) {
+async function reconcileContacts(allContacts, syncMode, configId = null, templateId = null) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const unsubSet = await getUnsubscribedSet();
 
   let filteredContacts = allContacts;
 
   if (syncMode === 'incremental') {
-    // Scope the history lookup to THIS specific SharePoint list config only.
-    // Without this, contacts sent via OTHER lists would appear as already-sent here.
+    // Scope the history lookup to THIS specific SharePoint list config and optionally template.
+    // Without this, contacts sent via OTHER lists/templates would appear as already-sent here.
     let latestRecipients;
 
     if (configId) {
-      // Scoped query: only look at recipients belonging to campaigns from this config.
-      // We also fetch sp_modified_at — the snapshot of SharePoint modifiedAt we stored
-      // at campaign-creation time. We compare the CURRENT SP modifiedAt against this
-      // stored snapshot, NOT against sentAt, because our own EmailSent write-back
-      // updates the SP item's Modified timestamp just after sentAt, causing false positives.
-      latestRecipients = await prisma.$queryRaw`
-        SELECT DISTINCT ON (LOWER(r.email))
-          LOWER(r.email)      AS email,
-          r.status,
-          r.sent_at           AS "sentAt",
-          r.sp_modified_at    AS "spModifiedAt"
-        FROM recipients r
-        INNER JOIN campaigns c ON c.id = r.campaign_id
-        WHERE c.config_id = ${configId}
-        ORDER BY LOWER(r.email) ASC, r.created_at DESC
-      `;
+      if (templateId) {
+        // Scoped query: only look at recipients belonging to campaigns from this config and template.
+        latestRecipients = await prisma.$queryRaw`
+          SELECT DISTINCT ON (LOWER(r.email))
+            LOWER(r.email)      AS email,
+            r.status,
+            r.sent_at           AS "sentAt",
+            r.sp_modified_at    AS "spModifiedAt"
+          FROM recipients r
+          INNER JOIN campaigns c ON c.id = r.campaign_id
+          WHERE c.config_id = ${configId} AND c.template_id = ${templateId}
+          ORDER BY LOWER(r.email) ASC, r.created_at DESC
+        `;
+      } else {
+        // Scoped query: only look at recipients belonging to campaigns from this config.
+        latestRecipients = await prisma.$queryRaw`
+          SELECT DISTINCT ON (LOWER(r.email))
+            LOWER(r.email)      AS email,
+            r.status,
+            r.sent_at           AS "sentAt",
+            r.sp_modified_at    AS "spModifiedAt"
+          FROM recipients r
+          INNER JOIN campaigns c ON c.id = r.campaign_id
+          WHERE c.config_id = ${configId}
+          ORDER BY LOWER(r.email) ASC, r.created_at DESC
+        `;
+      }
     } else {
-      // No configId — fall back to global history (all campaigns)
-      latestRecipients = await prisma.$queryRaw`
-        SELECT DISTINCT ON (LOWER(email))
-          LOWER(email)        AS email,
-          status,
-          sent_at             AS "sentAt",
-          sp_modified_at      AS "spModifiedAt"
-        FROM recipients
-        ORDER BY LOWER(email) ASC, created_at DESC
-      `;
+      if (templateId) {
+        // Scoped query: only look at recipients belonging to campaigns from this template.
+        latestRecipients = await prisma.$queryRaw`
+          SELECT DISTINCT ON (LOWER(r.email))
+            LOWER(r.email)      AS email,
+            r.status,
+            r.sent_at           AS "sentAt",
+            r.sp_modified_at    AS "spModifiedAt"
+          FROM recipients r
+          INNER JOIN campaigns c ON c.id = r.campaign_id
+          WHERE c.template_id = ${templateId}
+          ORDER BY LOWER(r.email) ASC, r.created_at DESC
+        `;
+      } else {
+        // No configId and no templateId — fall back to global history (all campaigns)
+        latestRecipients = await prisma.$queryRaw`
+          SELECT DISTINCT ON (LOWER(email))
+            LOWER(email)        AS email,
+            status,
+            sent_at             AS "sentAt",
+            sp_modified_at      AS "spModifiedAt"
+          FROM recipients
+          ORDER BY LOWER(email) ASC, created_at DESC
+        `;
+      }
     }
 
     const recipientMap = new Map();
@@ -386,12 +412,12 @@ apiRouter.post('/sharepoint/configs/:id/test', catchAsync(async (req, res) => {
  */
 apiRouter.get('/sharepoint/contacts', catchAsync(async (req, res) => {
   await authenticate(req);
-  const { mode = 'full', configId } = req.query;
+  const { mode = 'full', configId, templateId } = req.query;
   if (!configId) return res.status(400).json({ message: 'configId query parameter is required' });
 
   const allContacts = await getSharePointContacts(configId);
-  // Pass configId so incremental mode scopes history to THIS list only
-  const result = await reconcileContacts(allContacts, mode, configId);
+  // Pass configId and templateId so incremental mode scopes history to THIS list and template
+  const result = await reconcileContacts(allContacts, mode, configId, templateId || null);
 
   return res.status(200).json(result);
 }));
@@ -431,7 +457,7 @@ apiRouter.get('/campaigns/stats/dashboard', catchAsync(async (req, res) => {
 apiRouter.get('/campaigns', catchAsync(async (req, res) => {
   await authenticate(req);
   const campaigns = await prisma.campaign.findMany({
-    include: { template: true },
+    include: { template: true, config: true },
     orderBy: { createdAt: 'desc' },
   });
   return res.status(200).json(campaigns);
@@ -452,11 +478,11 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
   let reconciliation;
   if (Array.isArray(contacts) && contacts.length > 0) {
     // contacts already have itemId embedded from the preview step
-    reconciliation = await reconcileContacts(contacts, syncMode, configId || null);
+    reconciliation = await reconcileContacts(contacts, syncMode, configId || null, templateId || null);
   } else {
     if (!configId) return res.status(400).json({ message: 'configId is required when contacts are not provided' });
     const allContacts = await getSharePointContacts(configId);
-    reconciliation = await reconcileContacts(allContacts, syncMode, configId);
+    reconciliation = await reconcileContacts(allContacts, syncMode, configId, templateId || null);
   }
 
   const recipientsToCreate = reconciliation.contacts
@@ -485,6 +511,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
       templateId,
       status: 'processing',
       configId: configId || null,
+      syncMode: syncMode || 'full',
       totalCount: reconciliation.validCount,
       pendingCount: reconciliation.validCount,
       skippedCount: reconciliation.unsubscribedCount,
@@ -492,7 +519,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
       failedCount: 0,
       recipients: { create: recipientsToCreate },
     },
-    include: { template: true },
+    include: { template: true, config: true },
   });
 
   return res.status(201).json(campaign);
@@ -504,7 +531,7 @@ apiRouter.get('/campaigns/:id', catchAsync(async (req, res) => {
   await authenticate(req);
   const campaign = await prisma.campaign.findUnique({
     where: { id },
-    include: { template: true },
+    include: { template: true, config: true },
   });
   if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
   const senderEmail = process.env.AZURE_FROM_EMAIL || 'donotreply@your-domain.com';
@@ -607,7 +634,7 @@ apiRouter.post('/campaigns/:id/send-batch', batchLimiter, catchAsync(async (req,
       .update(recipient.email + 'desire-unsubscribe-salt')
       .digest('hex')
       .substring(0, 32);
-    const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}`;
+    const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}?email=${encodeURIComponent(recipient.email)}`;
 
     const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
     const rendered = renderTemplate(
@@ -717,9 +744,17 @@ apiRouter.post('/templates/:id/test', catchAsync(async (req, res) => {
   const template = await prisma.template.findUnique({ where: { id } });
   if (!template) return res.status(404).json({ message: 'Template not found' });
 
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const token = crypto
+    .createHash('sha256')
+    .update(testEmail.trim().toLowerCase() + 'desire-unsubscribe-salt')
+    .digest('hex')
+    .substring(0, 32);
+  const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}?email=${encodeURIComponent(testEmail.trim().toLowerCase())}`;
+
   const rendered = renderTemplate(
     { id: template.id, subject: template.subject, htmlBody: template.htmlBody, plainTextBody: template.plainTextBody },
-    { name: 'Test User', email: testEmail, unsubscribeLink: '#' }
+    { name: 'Test User', email: testEmail, unsubscribeLink }
   );
   await sendEmail({ to: testEmail, subject: `[TEST] ${rendered.subject}`, html: rendered.html, text: rendered.text });
   return res.status(200).json({ message: 'Test email sent successfully' });
@@ -807,6 +842,52 @@ apiRouter.post('/unsubscribe/:token', catchAsync(async (req, res) => {
     message: 'You have been successfully unsubscribed',
     email: maskEmail(email),
   });
+}));
+
+// GET /unsubscribed - fetches all unsubscribed emails for suppression list auditing
+apiRouter.get('/unsubscribed', catchAsync(async (req, res) => {
+  await authenticate(req);
+  const list = await prisma.unsubscribed.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+  return res.status(200).json({ unsubscribed: list });
+}));
+
+// POST /unsubscribed - manually add an email to the suppression list
+apiRouter.post('/unsubscribed', catchAsync(async (req, res) => {
+  await authenticate(req);
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email is required' });
+
+  const cleanEmail = email.trim().toLowerCase();
+  const existing = await prisma.unsubscribed.findUnique({ where: { email: cleanEmail } });
+  if (existing) return res.status(400).json({ message: 'Email is already unsubscribed' });
+
+  const token = crypto
+    .createHash('sha256')
+    .update(cleanEmail + 'desire-unsubscribe-salt')
+    .digest('hex')
+    .substring(0, 32);
+
+  const record = await prisma.unsubscribed.create({
+    data: { email: cleanEmail, token },
+  });
+  invalidateUnsubscribedCache();
+
+  return res.status(201).json(record);
+}));
+
+// DELETE /unsubscribed/:id - manually re-subscribe / delete from suppression list
+apiRouter.delete('/unsubscribed/:id', catchAsync(async (req, res) => {
+  await authenticate(req);
+  const { id } = req.params;
+  const existing = await prisma.unsubscribed.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ message: 'Unsubscribe record not found' });
+
+  await prisma.unsubscribed.delete({ where: { id } });
+  invalidateUnsubscribedCache();
+
+  return res.status(200).json({ message: 'Email re-subscribed successfully' });
 }));
 
 // GET /recipients - fetches all recipients across all campaigns for global Delivery Logs

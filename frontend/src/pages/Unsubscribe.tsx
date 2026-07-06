@@ -1,25 +1,42 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { MailX, CheckCircle, Loader2, Mail } from 'lucide-react';
 import api from '../api/axios';
 
 export default function Unsubscribe() {
   const { token } = useParams<{ token: string }>();
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialEmail = searchParams.get('email') || '';
+
+  const [email, setEmail] = useState(initialEmail);
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
-  const handleUnsubscribe = async () => {
-    if (!email || !token) return;
+  // Auto-trigger unsubscribe if email is provided in the query string
+  useEffect(() => {
+    if (initialEmail && token) {
+      const timer = setTimeout(() => {
+        handleUnsubscribeDirectly(initialEmail);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [initialEmail, token]);
+
+  const handleUnsubscribeDirectly = async (emailToUnsub: string) => {
+    if (!emailToUnsub || !token) return;
     setStatus('loading');
     try {
-      const res = await api.post(`/unsubscribe/${token}`, { email });
+      const res = await api.post(`/unsubscribe/${token}`, { email: emailToUnsub });
       setMessage(res.data.message);
       setStatus('success');
     } catch (err: any) {
       setMessage(err.response?.data?.message || 'Failed to unsubscribe. Invalid link.');
       setStatus('error');
     }
+  };
+
+  const handleUnsubscribe = async () => {
+    handleUnsubscribeDirectly(email);
   };
 
   return (
@@ -37,7 +54,7 @@ export default function Unsubscribe() {
               <h1 className="text-2xl font-bold text-white mb-2">Unsubscribed</h1>
               <p className="text-gray-400">{message}</p>
               <p className="text-sm text-gray-600 mt-4">
-                You will no longer receive marketing emails from VUF.org
+                You will no longer receive marketing emails from desireinfoweb.com
               </p>
             </>
           ) : status === 'error' ? (
@@ -59,7 +76,7 @@ export default function Unsubscribe() {
               </div>
               <h1 className="text-2xl font-bold text-white mb-2">Unsubscribe</h1>
               <p className="text-gray-400 mb-6">
-                Enter your email address to unsubscribe from VUF.org marketing emails.
+                Enter your email address to unsubscribe from desireinfoweb.com marketing emails.
               </p>
 
               <div className="space-y-4">
@@ -90,7 +107,7 @@ export default function Unsubscribe() {
         </div>
 
         <p className="text-center text-xs text-gray-700 mt-6">
-          © {new Date().getFullYear()} VUF.org — All rights reserved
+          © {new Date().getFullYear()} desireinfoweb.com — All rights reserved
         </p>
       </div>
     </div>

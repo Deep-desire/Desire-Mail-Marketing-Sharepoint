@@ -20,9 +20,46 @@ export default function CreateTemplate() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState('');
-  const [htmlBody, setHtmlBody] = useState('');
-  const [plainTextBody, setPlainTextBody] = useState('');
+  const [htmlBody, setHtmlBody] = useState(isEdit ? '' : `<html>
+<body>
+  <p>Dear {{name}},</p>
+  
+  <p>Type your content here...</p>
+  
+  <p>
+    Don't want to receive these emails anymore? 
+    <a href="{{ unsubscribeLink }}">Click here to unsubscribe</a> safely.
+  </p>
+</body>
+</html>`);
+  const [plainTextBody, setPlainTextBody] = useState(isEdit ? '' : `Dear {{name}},
+
+Type your content here...
+
+Don't want to receive these emails anymore? Click here to unsubscribe safely: {{unsubscribeLink}}`);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const getPreviewHtml = (rawHtml: string) => {
+    if (!rawHtml) return '';
+    let preview = rawHtml;
+    
+    // Replace placeholders with mock preview values
+    preview = preview.replace(/\{\{\s*name\s*\}\}/gi, 'John Doe');
+    preview = preview.replace(/\{\{\s*email\s*\}\}/gi, 'john.doe@example.com');
+
+    const hasUnsubscribeHtml = /unsubscribelink/i.test(preview) || /unsubscribe/i.test(preview);
+    if (!hasUnsubscribeHtml) {
+      const footerHtml = '<br/><br/><hr style="border:none;border-top:1px solid #eee;margin:20px 0;"/><p style="font-size:12px;color:#666;text-align:center;">Don\'t want to receive these emails anymore? <a href="#" style="color:#0066cc;text-decoration:underline;">Click here to unsubscribe</a> safely.</p>';
+      if (preview.toLowerCase().includes('</body>')) {
+        preview = preview.replace(/<\/body>/i, `${footerHtml}</body>`);
+      } else {
+        preview = preview + footerHtml;
+      }
+    }
+    
+    preview = preview.replace(/\{\{\s*unsubscribeLink\s*\}\}/gi, '#');
+    return preview;
+  };
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<TemplateForm>();
 
@@ -221,7 +258,7 @@ export default function CreateTemplate() {
             {/* Modal Content */}
             <div className="flex-1 bg-white p-4">
               <iframe
-                srcDoc={htmlBody || `<div style="color: #666; font-family: sans-serif; text-align: center; padding: 40px; font-size: 14px;">No HTML content. Type code in the editor to preview...</div>`}
+                srcDoc={getPreviewHtml(htmlBody) || `<div style="color: #666; font-family: sans-serif; text-align: center; padding: 40px; font-size: 14px;">No HTML content. Type code in the editor to preview...</div>`}
                 title="Full Screen Email Preview"
                 className="w-full h-full border-0 rounded-lg"
                 sandbox="allow-same-origin"

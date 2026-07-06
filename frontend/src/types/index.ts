@@ -63,6 +63,9 @@ export interface Campaign {
   createdAt: string;
   updatedAt: string;
   senderEmail?: string;
+  configId?: string | null;
+  config?: SharePointConfig | null;
+  syncMode?: 'full' | 'incremental';
 }
 
 export interface Recipient {

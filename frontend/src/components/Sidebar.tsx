@@ -7,14 +7,16 @@ import {
   Mail,
   Send,
   Settings,
+  MailX,
 } from 'lucide-react';
 
 const navItems = [
-  { to: '/dashboard',           icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/contacts',            icon: Upload,          label: 'Uploads' },
-  { to: '/templates',           icon: FileText,        label: 'Templates' },
-  { to: '/emails',              icon: Send,            label: 'Delivery Log' },
-  { to: '/settings/sharepoint', icon: Settings,        label: 'SP Lists' },
+  { to: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/contacts',              icon: Upload,          label: 'Uploads' },
+  { to: '/templates',             icon: FileText,        label: 'Templates' },
+  { to: '/emails',                icon: Send,            label: 'Delivery Log' },
+  { to: '/settings/sharepoint',   icon: Settings,        label: 'SP Lists' },
+  { to: '/settings/unsubscribed', icon: MailX,           label: 'Unsubscribed' },
 ];
 
 export default function Sidebar() {

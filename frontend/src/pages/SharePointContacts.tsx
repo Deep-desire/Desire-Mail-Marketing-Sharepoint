@@ -130,10 +130,14 @@ export default function SharePointContacts() {
       toast.error('Please select a SharePoint list first');
       return;
     }
+    if (!selectedTemplate) {
+      toast.error('Please select an email template first');
+      return;
+    }
     setSyncing(true);
     setContacts([]);
     try {
-      const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode);
+      const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode, selectedTemplate);
       setContacts(res.data.contacts);
       setStats({
         total: res.data.total,
@@ -158,7 +162,7 @@ export default function SharePointContacts() {
     } finally {
       setSyncing(false);
     }
-  }, [syncMode, selectedConfigId, spConfigs]);
+  }, [syncMode, selectedConfigId, selectedTemplate, spConfigs]);
 
   // ── Create Campaign & Send ──
   const handleStartCampaign = async () => {
@@ -383,6 +387,27 @@ export default function SharePointContacts() {
                   )}
                 </div>
 
+                {/* Email Template Selector */}
+                <div className="flex items-center gap-3">
+                  <label className="text-[10px] font-bold text-gray-400 tracking-wider uppercase whitespace-nowrap">Email Template:</label>
+                  <div className="relative w-44">
+                    <select
+                      id="sp-template-select"
+                      value={selectedTemplate}
+                      onChange={(e) => { setSelectedTemplate(e.target.value); setContacts([]); }}
+                      className="w-full bg-[#161a2b]/95 border border-indigo-500/35 hover:border-indigo-500/55 hover:bg-[#1e243d] rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all appearance-none pr-8 cursor-pointer h-[36px] shadow-md shadow-black/20"
+                    >
+                      <option value="" className="bg-[#161a2b] text-gray-400">Select a template…</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-[#161a2b] text-white">{t.name}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Sync Mode selector */}
                 <div className="flex items-center gap-3">
                   <label className="text-[10px] font-bold text-gray-400 tracking-wider uppercase whitespace-nowrap">Sync Mode:</label>
@@ -390,7 +415,7 @@ export default function SharePointContacts() {
                     <select
                       id="sync-mode-select"
                       value={syncMode}
-                      onChange={(e) => setSyncMode(e.target.value as 'incremental' | 'full')}
+                      onChange={(e) => { setSyncMode(e.target.value as 'incremental' | 'full'); setContacts([]); }}
                       className="w-full bg-[#161a2b]/95 border border-indigo-500/35 hover:border-indigo-500/55 hover:bg-[#1e243d] rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all appearance-none pr-8 cursor-pointer h-[36px] shadow-md shadow-black/20"
                     >
                       <option value="incremental" className="bg-[#161a2b] text-white">Incremental Sync (Updates)</option>
@@ -408,7 +433,7 @@ export default function SharePointContacts() {
                 <button
                   id="sync-sharepoint-btn"
                   onClick={handleSync}
-                  disabled={syncing || !selectedConfigId}
+                  disabled={syncing || !selectedConfigId || !selectedTemplate}
                   className="w-full lg:w-auto bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 h-[36px] px-5 rounded-2xl shadow-lg shadow-brand-500/10 hover:shadow-brand-500/20 active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
@@ -638,7 +663,9 @@ export default function SharePointContacts() {
                   <thead>
                     <tr className="border-b border-white/10 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                       <th className="px-4 py-3">Campaign</th>
+                      <th className="px-4 py-3">SharePoint List</th>
                       <th className="px-4 py-3">Template</th>
+                      <th className="px-4 py-3">Sync Mode</th>
                       <th className="px-4 py-3 text-center">Total</th>
                       <th className="px-4 py-3 text-center">Sent</th>
                       <th className="px-4 py-3 text-center">Failed</th>
@@ -657,7 +684,19 @@ export default function SharePointContacts() {
                             {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </td>
+                        <td className="px-4 py-3 text-xs text-gray-400">{c.config?.name || '—'}</td>
                         <td className="px-4 py-3 text-xs text-gray-400">{c.template?.name || '—'}</td>
+                        <td className="px-4 py-3 text-xs">
+                          {c.syncMode === 'incremental' ? (
+                            <span className="px-2.5 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 text-[10px] font-semibold uppercase tracking-wider">
+                              Incremental
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-semibold uppercase tracking-wider">
+                              Full Sync
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center font-semibold">{c.totalCount}</td>
                         <td className="px-4 py-3 text-center text-emerald-400 font-semibold">{c.sentCount}</td>
                         <td className="px-4 py-3 text-center text-red-400 font-semibold">{c.failedCount}</td>
@@ -715,25 +754,14 @@ export default function SharePointContacts() {
                 />
               </div>
 
-              {/* Template selector */}
+              {/* Selected Template (Read-Only in Step 2) */}
               <div className="space-y-1">
-                <label className="text-xs text-gray-400">Email Template *</label>
+                <label className="text-xs text-gray-400">Email Template</label>
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <select
-                      id="template-select"
-                      value={selectedTemplate}
-                      onChange={(e) => setSelectedTemplate(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-500 transition-colors appearance-none pr-10"
-                    >
-                      <option value="" className="bg-gray-900">Select a template…</option>
-                      {templates.map((t) => (
-                        <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-gray-400">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
+                  <div className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm flex items-center justify-between">
+                    <span className="font-semibold text-brand-300">
+                      {selectedTemplateObj?.name || 'No template selected'}
+                    </span>
                   </div>
                   {selectedTemplate && (
                     <button
@@ -749,12 +777,6 @@ export default function SharePointContacts() {
                     </button>
                   )}
                 </div>
-                {templates.length === 0 && (
-                  <p className="text-xs text-amber-400 mt-1">
-                    No templates yet.{' '}
-                    <a href="/templates/create" className="underline hover:text-amber-300">Create one</a>
-                  </p>
-                )}
               </div>
 
               {/* Validation summary */}

@@ -25,13 +25,13 @@ function invalidateTemplate(id) {
 function renderTemplate(template, variables) {
   const id = template.id || '__no_id__';
   const subjectFn = getCompiled(`${id}:subject`, template.subject);
-  const htmlFn    = getCompiled(`${id}:html`,    template.htmlBody);
-  const plainFn   = getCompiled(`${id}:text`,    template.plainTextBody);
+  const htmlFn = getCompiled(`${id}:html`, template.htmlBody);
+  const plainFn = getCompiled(`${id}:text`, template.plainTextBody);
 
   return {
     subject: subjectFn(variables),
-    html:    htmlFn(variables),
-    text:    plainFn(variables),
+    html: htmlFn(variables),
+    text: plainFn(variables),
   };
 }
 

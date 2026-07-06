@@ -16,6 +16,7 @@ const Templates          = lazy(() => import('./pages/Templates'));
 const CreateTemplate     = lazy(() => import('./pages/CreateTemplate'));
 const CampaignDetails    = lazy(() => import('./pages/CampaignDetails'));
 const Emails             = lazy(() => import('./pages/Emails'));
+const UnsubscribedSettings = lazy(() => import('./pages/UnsubscribedSettings'));
 
 function PageLoader() {
   return (
@@ -70,6 +71,10 @@ function App() {
         <Route
           path="/settings/sharepoint"
           element={<Suspense fallback={<PageLoader />}><SharePointSettings /></Suspense>}
+        />
+        <Route
+          path="/settings/unsubscribed"
+          element={<Suspense fallback={<PageLoader />}><UnsubscribedSettings /></Suspense>}
         />
 
         {/* Legacy redirect: old /uploads URL → /contacts */}

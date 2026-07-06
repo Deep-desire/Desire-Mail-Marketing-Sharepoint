@@ -27,7 +27,9 @@ model Campaign {
   status       String      @default("processing") // processing | completed | failed
   templateId   String      @map("template_id")
   template     Template    @relation(fields: [templateId], references: [id])
-  configId     String?     @map("config_id")
+  configId     String?             @map("config_id")
+  config       SharePointConfig?   @relation(fields: [configId], references: [id])
+  syncMode     String              @default("full") @map("sync_mode")
 
   // Delivery stats
   totalCount   Int         @default(0) @map("total_count")
@@ -105,6 +107,7 @@ model SharePointConfig {
   sortOrder    Int      @default(0)   @map("sort_order")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt      @map("updated_at")
+  campaigns    Campaign[]
 
   @@index([isActive])
   @@map("sharepoint_configs")

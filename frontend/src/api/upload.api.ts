@@ -42,8 +42,11 @@ export const uploadApi = {
 
   // ── SharePoint Contacts ─────────────────────────────────────────────────
   /** Fetch & categorise all contacts live from a specific SharePoint list */
-  getSharePointContacts: (configId: string, mode: 'incremental' | 'full' = 'full') =>
-    api.get<SPContactsResponse>(`/sharepoint/contacts?configId=${configId}&mode=${mode}`),
+  getSharePointContacts: (configId: string, mode: 'incremental' | 'full' = 'full', templateId?: string) => {
+    let url = `/sharepoint/contacts?configId=${configId}&mode=${mode}`;
+    if (templateId) url += `&templateId=${templateId}`;
+    return api.get<SPContactsResponse>(url);
+  },
 
   // ── Campaigns ───────────────────────────────────────────────────────────
   getCampaigns: () => api.get<Campaign[]>('/campaigns'),
@@ -94,6 +97,16 @@ export const uploadApi = {
 
   deleteRecipient: (id: string) =>
     api.delete<{ message: string }>(`/recipients/${id}`),
+
+  // ── Unsubscribed ────────────────────────────────────────────────────────
+  getUnsubscribed: () =>
+    api.get<{ unsubscribed: { id: string; email: string; token: string; createdAt: string }[] }>('/unsubscribed'),
+
+  addUnsubscribed: (email: string) =>
+    api.post<{ id: string; email: string; token: string; createdAt: string }>('/unsubscribed', { email }),
+
+  removeUnsubscribed: (id: string) =>
+    api.delete<{ message: string }>(`/unsubscribed/${id}`),
 
   // ── Dashboard stats ─────────────────────────────────────────────────────
   getDashboardStats: () =>
