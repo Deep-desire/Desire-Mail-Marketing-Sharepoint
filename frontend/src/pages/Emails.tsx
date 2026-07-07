@@ -83,7 +83,7 @@ export default function Emails() {
         const row = info.row.original;
         return (
           <div className="flex flex-col py-1">
-            <span className="font-semibold text-white">{row.name || '—'}</span>
+            <span className="font-semibold text-gray-900">{row.name || '—'}</span>
             <span className="text-gray-500 text-xs font-mono mt-0.5">{row.email}</span>
           </div>
         );
@@ -93,14 +93,14 @@ export default function Emails() {
       header: 'Campaign File',
       cell: (info) => {
         const row = info.row.original;
-        return <span className="text-gray-300 font-medium">{row.campaign?.name || '—'}</span>;
+        return <span className="text-gray-800 font-medium">{row.campaign?.name || '—'}</span>;
       }
     }),
     columnHelper.accessor('campaign.template.name' as any, {
       header: 'Template',
       cell: (info) => {
         const row = info.row.original;
-        return <span className="text-gray-400 text-xs">{row.campaign?.template?.name || '—'}</span>;
+        return <span className="text-gray-500 text-xs">{row.campaign?.template?.name || '—'}</span>;
       }
     }),
     columnHelper.accessor('status', {
@@ -119,11 +119,11 @@ export default function Emails() {
       cell: (info) => {
         const err = info.getValue();
         return err ? (
-          <span className="text-red-400 text-xs max-w-[200px] truncate block" title={err}>
+          <span className="text-red-600 text-xs max-w-[200px] truncate block font-medium" title={err}>
             {err}
           </span>
         ) : (
-          <span className="text-gray-500">—</span>
+          <span className="text-gray-400">—</span>
         );
       }
     }),
@@ -135,7 +135,7 @@ export default function Emails() {
         return (
           <Link
             to={`/campaigns/${row.campaignId}`}
-            className="px-3 py-1.5 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-400 hover:bg-brand-500/20 transition-all text-xs font-medium flex items-center gap-1.5 w-fit"
+            className="px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-200 text-brand-600 hover:bg-brand-100 hover:text-brand-700 transition-all text-xs font-semibold flex items-center gap-1.5 w-fit shadow-sm"
           >
             <Eye className="w-3.5 h-3.5" />
             View
@@ -148,22 +148,22 @@ export default function Emails() {
   const getTabClass = (tab: string) => {
     const isActive = activeTab === tab;
     if (isActive) {
-      return "flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border border-brand-500/60 bg-brand-950/85 text-brand-400 shadow-lg shadow-brand-500/5 select-none";
+      return "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-brand-200 bg-brand-50 text-brand-700 shadow-sm select-none";
     }
-    return "flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border border-transparent text-gray-400 hover:text-white hover:bg-white/5";
+    return "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/50";
   };
 
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between border-b border-gray-200 pb-5">
         <div>
           <h1 className="page-title">Delivery Logs</h1>
           <p className="text-gray-500 text-sm mt-1">Track and review sent or failed marketing emails.</p>
         </div>
         <button
           onClick={fetchLogs}
-          className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-gray-400 transition-colors"
+          className="p-2.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-gray-500 transition-colors shadow-sm"
           title="Refresh Logs"
           disabled={loading}
         >
@@ -174,7 +174,7 @@ export default function Emails() {
       {/* Toolbar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         {/* Tab Filters */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* ALL LOGS */}
           <button
             onClick={() => handleTabChange('all')}
@@ -224,14 +224,14 @@ export default function Emails() {
         {/* Search */}
         <div className="relative w-full md:w-80">
           <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="w-4 h-4 text-gray-500" />
+            <Search className="w-4 h-4 text-gray-400" />
           </span>
           <input
             type="text"
             placeholder="Search by name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-colors"
+            className="w-full bg-white border border-gray-300 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-950 placeholder-gray-400 focus:outline-none focus:border-brand-500 transition-colors shadow-sm h-[38px]"
           />
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function Emails() {
       {/* Logs Table Container */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+          <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
         </div>
       ) : (
         <div className="space-y-4">

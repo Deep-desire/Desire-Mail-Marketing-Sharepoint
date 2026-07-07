@@ -112,9 +112,9 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate('/templates')} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-          <ArrowLeft className="w-5 h-5 text-gray-400" />
+      <div className="flex items-center gap-4 border-b border-gray-200 pb-5">
+        <button onClick={() => navigate('/templates')} className="p-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-500 transition-colors shadow-sm">
+          <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="page-title">{isEdit ? 'Edit Template' : 'Create Template'}</h1>
       </div>
@@ -122,7 +122,7 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
       <form onSubmit={handleSubmit(onSubmit)} className="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column - Template Information */}
         <div className="space-y-6">
-          <div className="glass-card p-6 space-y-5">
+          <div className="glass-card p-6 space-y-5 bg-white border border-gray-200 shadow-sm">
             {/* Template Name */}
             <div>
               <label htmlFor="template-name" className="label-text">Template Name</label>
@@ -132,7 +132,7 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
                 placeholder="e.g. Monthly Newsletter"
                 {...register('name', { required: 'Name is required' })}
               />
-              {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name.message}</p>}
+              {errors.name && <p className="text-red-600 text-xs mt-1">{errors.name.message}</p>}
             </div>
 
             {/* Subject */}
@@ -144,7 +144,7 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
                 placeholder="e.g. Hello {{name}}, check out our latest update!"
                 {...register('subject', { required: 'Subject is required' })}
               />
-              {errors.subject && <p className="text-red-400 text-xs mt-1">{errors.subject.message}</p>}
+              {errors.subject && <p className="text-red-600 text-xs mt-1">{errors.subject.message}</p>}
             </div>
 
             {/* HTML Body */}
@@ -165,7 +165,7 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
                 onChange={(e) => setPlainTextBody(e.target.value)}
                 placeholder="Hello {{name}}, your email content here... Unsubscribe: {{unsubscribeLink}}"
                 rows={5}
-                className="input-field resize-y"
+                className="input-field resize-y text-sm font-mono text-gray-700 bg-white"
               />
             </div>
           </div>
@@ -180,8 +180,8 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
 
           {/* Send Test (only for existing templates) */}
           {isEdit && (
-            <div className="glass-card p-6">
-              <h3 className="section-title mb-4">Send Test Email</h3>
+            <div className="glass-card p-6 bg-white border border-gray-200 shadow-sm">
+              <h3 className="section-title mb-4 border-b border-gray-100 pb-3">Send Test Email</h3>
               <div className="flex items-end gap-3">
                 <div className="flex-1">
                   <label htmlFor="test-email" className="label-text">Test Email Address</label>
@@ -198,7 +198,7 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
                   type="button"
                   onClick={handleSendTest}
                   disabled={testing || !testEmail}
-                  className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+                  className="btn-secondary flex items-center gap-2 whitespace-nowrap h-[45px]"
                 >
                   {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <SendHorizontal className="w-4 h-4" />}
                   Send Test
@@ -209,27 +209,27 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
         </div>
 
         {/* Right Column - Live Preview */}
-        <div className="sticky top-6 flex flex-col border border-white/10 rounded-2xl bg-[#0b0c16] overflow-hidden h-[calc(100vh-140px)] min-h-[500px]">
-          <div className="px-6 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+        <div className="sticky top-6 flex flex-col border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden h-[calc(100vh-140px)] min-h-[500px]">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Live Preview</h3>
-              <p className="text-[10px] text-gray-400 mt-0.5">Real-time template rendering</p>
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Live Preview</h3>
+              <p className="text-[10px] text-gray-500 mt-0.5">Real-time template rendering</p>
             </div>
             <button
               type="button"
               onClick={() => setIsFullscreen(true)}
-              className="p-1.5 px-3 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white transition-colors text-gray-400 flex items-center gap-1.5 text-xs font-semibold"
+              className="p-1.5 px-3 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-900 transition-colors text-gray-650 text-gray-500 flex items-center gap-1.5 text-xs font-semibold shadow-sm"
               title="Full Screen Preview"
             >
               <Maximize2 className="w-3.5 h-3.5" />
               <span>Full Screen</span>
             </button>
           </div>
-          <div className="flex-1 bg-white p-4">
+          <div className="flex-1 bg-gray-50 p-4 overflow-hidden">
             <iframe
               srcDoc={htmlBody || `<div style="color: #666; font-family: sans-serif; text-align: center; padding: 60px; font-size: 14px;">No HTML content. Type code on the left to preview...</div>`}
               title="HTML Email Preview"
-              className="w-full h-full border-0 rounded-lg"
+              className="w-full h-full border border-gray-200 rounded-xl bg-white shadow-inner"
               sandbox="allow-same-origin"
             />
           </div>
@@ -238,29 +238,29 @@ Don't want to receive these emails anymore? Click here to unsubscribe safely: {{
 
       {/* Full Screen Preview Modal */}
       {isFullscreen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-8 animate-fade-in">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-8 animate-fade-in">
+          <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
               <div>
-                <h3 className="text-lg font-bold text-white">Full Screen Template Preview</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Rendered email layout</p>
+                <h3 className="text-lg font-bold text-gray-900">Full Screen Template Preview</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Rendered email layout</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsFullscreen(false)}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 hover:text-white transition-colors text-gray-400"
+                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors text-gray-500"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="flex-1 bg-white p-4">
+            <div className="flex-1 bg-gray-100 p-4">
               <iframe
                 srcDoc={getPreviewHtml(htmlBody) || `<div style="color: #666; font-family: sans-serif; text-align: center; padding: 40px; font-size: 14px;">No HTML content. Type code in the editor to preview...</div>`}
                 title="Full Screen Email Preview"
-                className="w-full h-full border-0 rounded-lg"
+                className="w-full h-full border border-gray-205 border-gray-200 bg-white rounded-lg shadow-sm"
                 sandbox="allow-same-origin"
               />
             </div>

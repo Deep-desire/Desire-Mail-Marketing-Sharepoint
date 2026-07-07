@@ -17,10 +17,10 @@ function StatPill({
   icon, label, value, color,
 }: { icon: React.ReactNode; label: string; value: number; color: string }) {
   return (
-    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10`}>
+    <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white border border-gray-200 shadow-sm">
       <span className={color}>{icon}</span>
       <div>
-        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-xs text-gray-500 font-medium">{label}</p>
         <p className={`text-lg font-bold ${color}`}>{value}</p>
       </div>
     </div>
@@ -304,10 +304,10 @@ export default function SharePointContacts() {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case 'valid': return <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />;
-      case 'invalid': return <XCircle className="w-3.5 h-3.5 text-red-400" />;
-      case 'duplicate': return <MinusCircle className="w-3.5 h-3.5 text-amber-400" />;
-      case 'unsubscribed': return <AlertCircle className="w-3.5 h-3.5 text-gray-400" />;
+      case 'valid': return <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />;
+      case 'invalid': return <XCircle className="w-3.5 h-3.5 text-red-650 text-red-650 text-red-605 text-red-600" />;
+      case 'duplicate': return <MinusCircle className="w-3.5 h-3.5 text-amber-600" />;
+      case 'unsubscribed': return <AlertCircle className="w-3.5 h-3.5 text-gray-500" />;
       default: return null;
     }
   };
@@ -319,7 +319,7 @@ export default function SharePointContacts() {
   return (
     <div className="space-y-8">
       {/* Wizard Steps indicator */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
           <h1 className="page-title">SharePoint Contacts Wizard</h1>
           <p className="text-gray-500 mt-1">
@@ -330,13 +330,13 @@ export default function SharePointContacts() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${step === 1 ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-white/5 text-gray-400'}`}>
-            <span className="w-4 h-4 rounded-full bg-brand-500/10 flex items-center justify-center text-[10px]">1</span>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${step === 1 ? 'bg-brand-50 text-brand-600 border border-brand-200 shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
+            <span className="w-4 h-4 rounded-full bg-brand-100 flex items-center justify-center text-[10px] text-brand-700">1</span>
             Contacts list ({stats.validCount} valid)
           </div>
-          <ChevronRight className="w-4 h-4 text-gray-600" />
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${step === 2 ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-white/5 text-gray-400'}`}>
-            <span className="w-4 h-4 rounded-full bg-brand-500/10 flex items-center justify-center text-[10px]">2</span>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${step === 2 ? 'bg-brand-50 text-brand-600 border border-brand-200 shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
+            <span className="w-4 h-4 rounded-full bg-brand-100 flex items-center justify-center text-[10px] text-brand-700">2</span>
             Campaign Launch
           </div>
         </div>
@@ -346,7 +346,7 @@ export default function SharePointContacts() {
         /* ────────────────── STEP 1: CONTACT SYNC & REVIEW ────────────────── */
         <div className="space-y-6 animate-fade-in">
           {/* Sync controls */}
-          <div className="bg-[#121420]/40 border border-white/5 p-4 rounded-2xl backdrop-blur-md shadow-xl relative overflow-hidden">
+          <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm relative overflow-hidden">
             {/* Subtle glow background */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -354,33 +354,33 @@ export default function SharePointContacts() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-6 flex-1">
                 {/* SharePoint List selector */}
                 <div className="flex items-center gap-3">
-                  <label className="text-[10px] font-bold text-gray-400 tracking-wider uppercase whitespace-nowrap">SharePoint List:</label>
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">SharePoint List:</label>
                   <div className="relative w-44">
                     <select
                       id="sp-list-select"
                       value={selectedConfigId}
                       onChange={(e) => { setSelectedConfigId(e.target.value); setContacts([]); }}
                       disabled={loadingConfigs}
-                      className="w-full bg-[#161a2b]/95 border border-indigo-500/35 hover:border-indigo-500/55 hover:bg-[#1e243d] rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all appearance-none pr-8 cursor-pointer h-[36px] shadow-md shadow-black/20"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
                     >
                       {loadingConfigs ? (
-                        <option value="" className="bg-[#161a2b] text-gray-400">Loading lists…</option>
+                        <option value="">Loading lists…</option>
                       ) : spConfigs.length === 0 ? (
-                        <option value="" className="bg-[#161a2b] text-gray-400">No lists</option>
+                        <option value="">No lists</option>
                       ) : (
                         spConfigs.map((cfg) => (
-                          <option key={cfg.id} value={cfg.id} className="bg-[#161a2b] text-white">{cfg.name}</option>
+                          <option key={cfg.id} value={cfg.id}>{cfg.name}</option>
                         ))
                       )}
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
                       <ChevronDown className="w-3.5 h-3.5" />
                     </div>
                   </div>
                   {spConfigs.length === 0 && !loadingConfigs && (
                     <button
                       onClick={() => navigate('/settings/sharepoint')}
-                      className="text-xs text-brand-400 hover:text-brand-300 underline whitespace-nowrap"
+                      className="text-xs text-brand-600 hover:text-brand-700 font-semibold underline whitespace-nowrap"
                     >
                       + Add
                     </button>
@@ -389,20 +389,20 @@ export default function SharePointContacts() {
 
                 {/* Email Template Selector */}
                 <div className="flex items-center gap-3">
-                  <label className="text-[10px] font-bold text-gray-400 tracking-wider uppercase whitespace-nowrap">Email Template:</label>
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Email Template:</label>
                   <div className="relative w-44">
                     <select
                       id="sp-template-select"
                       value={selectedTemplate}
                       onChange={(e) => { setSelectedTemplate(e.target.value); setContacts([]); }}
-                      className="w-full bg-[#161a2b]/95 border border-indigo-500/35 hover:border-indigo-500/55 hover:bg-[#1e243d] rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all appearance-none pr-8 cursor-pointer h-[36px] shadow-md shadow-black/20"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
                     >
-                      <option value="" className="bg-[#161a2b] text-gray-400">Select a template…</option>
+                      <option value="">Select a template…</option>
                       {templates.map((t) => (
-                        <option key={t.id} value={t.id} className="bg-[#161a2b] text-white">{t.name}</option>
+                        <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
                       <ChevronDown className="w-3.5 h-3.5" />
                     </div>
                   </div>
@@ -410,18 +410,18 @@ export default function SharePointContacts() {
 
                 {/* Sync Mode selector */}
                 <div className="flex items-center gap-3">
-                  <label className="text-[10px] font-bold text-gray-400 tracking-wider uppercase whitespace-nowrap">Sync Mode:</label>
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Sync Mode:</label>
                   <div className="relative w-52">
                     <select
                       id="sync-mode-select"
                       value={syncMode}
                       onChange={(e) => { setSyncMode(e.target.value as 'incremental' | 'full'); setContacts([]); }}
-                      className="w-full bg-[#161a2b]/95 border border-indigo-500/35 hover:border-indigo-500/55 hover:bg-[#1e243d] rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all appearance-none pr-8 cursor-pointer h-[36px] shadow-md shadow-black/20"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
                     >
-                      <option value="incremental" className="bg-[#161a2b] text-white">Incremental Sync (Updates)</option>
-                      <option value="full" className="bg-[#161a2b] text-white">Full Sync (All Contacts)</option>
+                      <option value="incremental">Incremental Sync (Updates)</option>
+                      <option value="full">Full Sync (All Contacts)</option>
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
                       <ChevronDown className="w-3.5 h-3.5" />
                     </div>
                   </div>
@@ -434,7 +434,7 @@ export default function SharePointContacts() {
                   id="sync-sharepoint-btn"
                   onClick={handleSync}
                   disabled={syncing || !selectedConfigId || !selectedTemplate}
-                  className="w-full lg:w-auto bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 h-[36px] px-5 rounded-2xl shadow-lg shadow-brand-500/10 hover:shadow-brand-500/20 active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                  className="w-full lg:w-auto bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 h-[36px] px-5 rounded-xl shadow-sm active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Syncing…' : 'Sync from SharePoint'}
@@ -446,37 +446,37 @@ export default function SharePointContacts() {
           {/* Stats row */}
           {contacts.length > 0 && (
             <div className="flex flex-wrap gap-3 animate-fade-in">
-              <StatPill icon={<Users className="w-4 h-4" />} label="Total" value={stats.total} color="text-white" />
-              <StatPill icon={<CheckCircle className="w-4 h-4" />} label="Valid" value={stats.validCount} color="text-emerald-400" />
-              <StatPill icon={<XCircle className="w-4 h-4" />} label="Invalid" value={stats.invalidCount} color="text-red-400" />
-              <StatPill icon={<MinusCircle className="w-4 h-4" />} label="Duplicates" value={stats.duplicateCount} color="text-amber-400" />
-              <StatPill icon={<AlertCircle className="w-4 h-4" />} label="Unsubscribed" value={stats.unsubscribedCount} color="text-gray-400" />
+              <StatPill icon={<Users className="w-4 h-4" />} label="Total" value={stats.total} color="text-gray-900" />
+              <StatPill icon={<CheckCircle className="w-4 h-4" />} label="Valid" value={stats.validCount} color="text-emerald-600" />
+              <StatPill icon={<XCircle className="w-4 h-4" />} label="Invalid" value={stats.invalidCount} color="text-red-600" />
+              <StatPill icon={<MinusCircle className="w-4 h-4" />} label="Duplicates" value={stats.duplicateCount} color="text-amber-600" />
+              <StatPill icon={<AlertCircle className="w-4 h-4" />} label="Unsubscribed" value={stats.unsubscribedCount} color="text-gray-500" />
             </div>
           )}
 
           {/* Contacts table preview */}
-          <div className="glass-card p-6 overflow-hidden">
+          <div className="glass-card p-6 overflow-hidden bg-white border border-gray-200 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
               <h2 className="section-title flex items-center gap-2">
-                <Mail className="w-4 h-4 text-brand-400" />
+                <Mail className="w-4 h-4 text-brand-600" />
                 Contacts Preview
               </h2>
               {contacts.length > 0 && (
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   {/* Search Input */}
-                  <div className="relative">
+                  <div className="relative w-full sm:w-56">
                     <input
                       type="text"
                       placeholder="Search name or email..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 pl-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 w-full sm:w-56"
+                      className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 pl-8 text-xs text-gray-950 placeholder-gray-400 focus:outline-none focus:border-brand-500 w-full"
                     />
-                    <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -484,18 +484,18 @@ export default function SharePointContacts() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-400">Filter:</label>
+                    <label className="text-xs text-gray-500">Filter:</label>
                     <select
                       id="contact-filter-select"
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value as any)}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:border-brand-500 shadow-sm h-[28px]"
                     >
-                      <option value="all" className="bg-gray-900">All ({stats.total})</option>
-                      <option value="valid" className="bg-gray-900">Valid ({stats.validCount})</option>
-                      <option value="invalid" className="bg-gray-900">Invalid ({stats.invalidCount})</option>
-                      <option value="duplicate" className="bg-gray-900">Duplicate ({stats.duplicateCount})</option>
-                      <option value="unsubscribed" className="bg-gray-900">Unsubscribed ({stats.unsubscribedCount})</option>
+                      <option value="all">All ({stats.total})</option>
+                      <option value="valid">Valid ({stats.validCount})</option>
+                      <option value="invalid">Invalid ({stats.invalidCount})</option>
+                      <option value="duplicate">Duplicate ({stats.duplicateCount})</option>
+                      <option value="unsubscribed">Unsubscribed ({stats.unsubscribedCount})</option>
                     </select>
                   </div>
                 </div>
@@ -505,21 +505,21 @@ export default function SharePointContacts() {
             {syncing ? (
               <div className="space-y-3 animate-pulse py-6">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-12 bg-white/5 rounded-lg" />
+                  <div key={i} className="h-12 bg-gray-100 rounded-lg" />
                 ))}
               </div>
             ) : contacts.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
-                <Users className="w-14 h-14 mx-auto text-gray-700 mb-4" />
-                <p className="text-sm font-semibold text-gray-400">No contacts synced yet</p>
-                <p className="text-xs mt-1">Select your sync mode and click "Sync from SharePoint" above to fetch records.</p>
+              <div className="text-center py-16 text-gray-400">
+                <Users className="w-14 h-14 mx-auto text-gray-300 mb-4" />
+                <p className="text-sm font-semibold text-gray-700">No contacts synced yet</p>
+                <p className="text-xs text-gray-500 mt-1">Select your sync mode and click "Sync from SharePoint" above to fetch records.</p>
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto border border-gray-200 rounded-xl">
                   <table className="w-full table-fixed min-w-[700px]">
                     <thead>
-                      <tr className="border-b border-white/10 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50">
                         <th className="px-4 py-3 w-16">#</th>
                         <th className="px-4 py-3 w-[25%]">Name</th>
                         <th className="px-4 py-3 w-[40%]">Email</th>
@@ -527,21 +527,21 @@ export default function SharePointContacts() {
                         <th className="px-4 py-3 w-28 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5 text-sm text-gray-300">
+                    <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                       {visibleContacts.map((c, idx) => {
                         const actualIndex = contacts.findIndex(item => item === c);
                         const isEditing = editingIndex === actualIndex;
 
                         return (
-                          <tr key={idx} className="hover:bg-white/5 transition-colors group">
-                            <td className="px-4 py-3 text-gray-600 text-xs">{actualIndex + 1}</td>
-                            <td className="px-4 py-3 font-medium text-white truncate" title={c.name}>
+                          <tr key={idx} className="hover:bg-gray-50/40 transition-colors group">
+                            <td className="px-4 py-3 text-gray-400 text-xs">{actualIndex + 1}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900 truncate" title={c.name}>
                               {isEditing ? (
                                 <input
                                   type="text"
                                   value={editName}
                                   onChange={(e) => setEditName(e.target.value)}
-                                  className="bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 text-white text-xs w-full focus:outline-none focus:border-brand-500"
+                                  className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                                 />
                               ) : (
                                 c.name || '—'
@@ -553,16 +553,16 @@ export default function SharePointContacts() {
                                   type="text"
                                   value={editEmail}
                                   onChange={(e) => setEditEmail(e.target.value)}
-                                  className="bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 text-white text-xs w-full focus:outline-none focus:border-brand-500"
+                                  className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
                                 />
                               ) : (
-                                <span className={c.status === 'invalid' ? 'text-red-400 font-bold' : 'text-gray-400'}>{c.email}</span>
+                                <span className={c.status === 'invalid' ? 'text-red-655 text-red-600 font-bold' : 'text-gray-500'}>{c.email}</span>
                               )}
                             </td>
                             <td className="px-4 py-3">
                               <span className="flex items-center gap-1.5">
                                 {statusIcon(c.status)}
-                                <span className="capitalize text-xs">{c.status}</span>
+                                <span className="capitalize text-xs font-medium">{c.status}</span>
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
@@ -570,13 +570,13 @@ export default function SharePointContacts() {
                                 <div className="flex items-center justify-end gap-2">
                                   <button
                                     onClick={() => saveEdit(actualIndex)}
-                                    className="text-xs text-brand-400 hover:text-brand-300 font-semibold px-2.5 py-1 hover:bg-white/15 rounded-lg border border-brand-500/20"
+                                    className="text-xs text-brand-600 hover:text-brand-700 font-semibold px-2.5 py-1 hover:bg-brand-50 rounded-lg border border-brand-200"
                                   >
                                     Save
                                   </button>
                                   <button
                                     onClick={cancelEdit}
-                                    className="text-xs text-gray-400 hover:text-gray-200 px-2.5 py-1 hover:bg-white/10 rounded-lg border border-white/10"
+                                    className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 hover:bg-gray-50 rounded-lg border border-gray-300"
                                   >
                                     Cancel
                                   </button>
@@ -585,14 +585,14 @@ export default function SharePointContacts() {
                                 <div className="flex items-center justify-end gap-1">
                                   <button
                                     onClick={() => startEdit(actualIndex, c.name, c.email)}
-                                    className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-brand-400 transition-all"
+                                    className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-brand-600 transition-all hover:bg-gray-100"
                                     title="Edit contact"
                                   >
                                     <Edit className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => deleteContact(actualIndex)}
-                                    className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-400 transition-all"
+                                    className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-red-600 transition-all hover:bg-gray-100"
                                     title="Delete contact"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -608,10 +608,10 @@ export default function SharePointContacts() {
                 </div>
 
                 {filteredTotal > 20 && (
-                  <div className="pt-3 text-center border-t border-white/5 mt-2">
+                  <div className="pt-3 text-center border-t border-gray-100 mt-2">
                     <button
                       onClick={() => setShowAllContacts(!showAllContacts)}
-                      className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 mx-auto transition-colors"
+                      className="text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1 mx-auto font-semibold transition-colors"
                     >
                       {showAllContacts ? (
                         <><ChevronUp className="w-3.5 h-3.5" /> Show less</>
@@ -631,7 +631,7 @@ export default function SharePointContacts() {
               <button
                 onClick={() => setStep(2)}
                 disabled={stats.validCount === 0}
-                className="btn-primary flex items-center gap-2 px-6 py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold shadow-lg shadow-brand-500/20 transition-all hover:translate-x-0.5"
+                className="btn-primary flex items-center gap-2 px-6 py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold shadow-sm transition-all hover:translate-x-0.5"
               >
                 Next: Setup Campaign
                 <ChevronRight className="w-4 h-4" />
@@ -640,28 +640,28 @@ export default function SharePointContacts() {
           )}
 
           {/* Campaign History is kept at bottom of Step 1 */}
-          <div className="glass-card p-6 overflow-hidden">
+          <div className="glass-card p-6 overflow-hidden bg-white border border-gray-200 shadow-sm">
             <h2 className="section-title flex items-center gap-2 mb-4">
-              <History className="w-5 h-5 text-brand-400" />
+              <History className="w-5 h-5 text-brand-600" />
               Campaign History
             </h2>
 
             {loadingHistory ? (
               <div className="space-y-3 animate-pulse">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-12 bg-white/5 rounded-lg" />
+                  <div key={i} className="h-12 bg-gray-100 rounded-lg" />
                 ))}
               </div>
             ) : campaigns.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Layers className="w-12 h-12 mx-auto text-gray-700 mb-3" />
+              <div className="text-center py-12 text-gray-400">
+                <Layers className="w-12 h-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-sm">No campaigns yet. Launch your first one above!</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto border border-gray-200 rounded-xl">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-white/10 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50">
                       <th className="px-4 py-3">Campaign</th>
                       <th className="px-4 py-3">SharePoint List</th>
                       <th className="px-4 py-3">Template</th>
@@ -673,33 +673,33 @@ export default function SharePointContacts() {
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5 text-sm text-gray-300">
+                  <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                     {campaigns.map((c) => (
-                      <tr key={c.id} className="hover:bg-white/5 transition-colors">
+                      <tr key={c.id} className="hover:bg-gray-50/40 transition-colors">
                         <td className="px-4 py-3">
-                          <div className="font-medium text-white max-w-[180px] truncate" title={c.name}>{c.name}</div>
-                          <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                            <Calendar className="w-3 h-3" />
+                          <div className="font-semibold text-gray-900 max-w-[180px] truncate" title={c.name}>{c.name}</div>
+                          <div className="text-xs text-gray-450 text-gray-500 flex items-center gap-1 mt-0.5">
+                            <Calendar className="w-3 h-3 text-gray-400" />
                             {new Date(c.createdAt).toLocaleDateString()}{' '}
                             {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{c.config?.name || '—'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{c.template?.name || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 font-medium">{c.config?.name || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 font-medium">{c.template?.name || '—'}</td>
                         <td className="px-4 py-3 text-xs">
                           {c.syncMode === 'incremental' ? (
-                            <span className="px-2.5 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 text-[10px] font-semibold uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200 text-[10px] font-bold uppercase tracking-wider">
                               Incremental
                             </span>
                           ) : (
-                            <span className="px-2.5 py-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-semibold uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold uppercase tracking-wider">
                               Full Sync
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center font-semibold">{c.totalCount}</td>
-                        <td className="px-4 py-3 text-center text-emerald-400 font-semibold">{c.sentCount}</td>
-                        <td className="px-4 py-3 text-center text-red-400 font-semibold">{c.failedCount}</td>
+                        <td className="px-4 py-3 text-center font-bold text-gray-800">{c.totalCount}</td>
+                        <td className="px-4 py-3 text-center text-emerald-600 font-bold">{c.sentCount}</td>
+                        <td className="px-4 py-3 text-center text-red-600 font-bold">{c.failedCount}</td>
                         <td className="px-4 py-3">
                           <StatusBadge status={c.status} />
                         </td>
@@ -707,7 +707,7 @@ export default function SharePointContacts() {
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => navigate(`/campaigns/${c.id}`)}
-                              className="p-1.5 rounded-lg bg-white/5 hover:bg-brand-500/20 hover:text-brand-400 text-gray-400 transition-all inline-flex items-center gap-1 text-xs"
+                              className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-750 text-gray-700 transition-all inline-flex items-center gap-1 text-xs font-semibold shadow-sm"
                               title="View Campaign"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -715,7 +715,7 @@ export default function SharePointContacts() {
                             </button>
                             <button
                               onClick={() => setDeletingCampaign(c)}
-                              className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-gray-400 transition-all inline-flex items-center"
+                              className="p-1.5 rounded-lg bg-white border border-gray-300 hover:bg-red-50 hover:text-red-650 hover:text-red-600 text-gray-750 transition-all inline-flex items-center shadow-sm"
                               title="Delete Campaign"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -735,31 +735,31 @@ export default function SharePointContacts() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
           {/* Setup Panel */}
           <div className="lg:col-span-1 space-y-6">
-            <div className="glass-card p-6 space-y-5">
-              <h2 className="section-title flex items-center gap-2">
-                <Send className="w-4 h-4 text-brand-400" />
+            <div className="glass-card p-6 space-y-5 bg-white border border-gray-200 shadow-sm">
+              <h2 className="section-title flex items-center gap-2 border-b border-gray-150 border-gray-100 pb-3">
+                <Send className="w-4 h-4 text-brand-600" />
                 Launch Details
               </h2>
 
               {/* Campaign name */}
               <div className="space-y-1">
-                <label className="text-xs text-gray-400">Campaign Name (optional)</label>
+                <label className="text-xs font-medium text-gray-500">Campaign Name (optional)</label>
                 <input
                   id="campaign-name-input"
                   type="text"
                   value={campaignName}
                   onChange={(e) => setCampaignName(e.target.value)}
                   placeholder={`Campaign – ${new Date().toLocaleDateString()}`}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-brand-500 transition-colors shadow-sm"
                 />
               </div>
 
               {/* Selected Template (Read-Only in Step 2) */}
               <div className="space-y-1">
-                <label className="text-xs text-gray-400">Email Template</label>
+                <label className="text-xs font-medium text-gray-500">Email Template</label>
                 <div className="flex gap-2">
-                  <div className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm flex items-center justify-between">
-                    <span className="font-semibold text-brand-300">
+                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm flex items-center justify-between">
+                    <span className="font-semibold text-brand-600">
                       {selectedTemplateObj?.name || 'No template selected'}
                     </span>
                   </div>
@@ -770,7 +770,7 @@ export default function SharePointContacts() {
                         setIframeHeight('400px');
                         setIsPreviewModalOpen(true);
                       }}
-                      className="px-3 rounded-xl bg-white/5 border border-white/10 hover:bg-brand-500/20 hover:text-brand-400 text-gray-300 transition-all flex items-center justify-center shrink-0"
+                      className="px-3 rounded-xl bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-600 text-gray-700 transition-all flex items-center justify-center shrink-0 shadow-sm"
                       title="Preview Email Format"
                     >
                       <Eye className="w-4.5 h-4.5" />
@@ -780,10 +780,11 @@ export default function SharePointContacts() {
               </div>
 
               {/* Validation summary */}
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-xs text-emerald-300 space-y-1">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 space-y-1">
+                <p className="font-semibold text-emerald-800">Ready to Launch!</p>
                 <p><strong>{stats.validCount}</strong> valid contacts will receive this email.</p>
                 {stats.unsubscribedCount > 0 && (
-                  <p className="text-gray-400">{stats.unsubscribedCount} unsubscribed contacts will be skipped.</p>
+                  <p className="text-gray-500">{stats.unsubscribedCount} unsubscribed contacts will be skipped.</p>
                 )}
               </div>
 
@@ -810,7 +811,7 @@ export default function SharePointContacts() {
                 <button
                   onClick={() => setStep(1)}
                   disabled={sending}
-                  className="w-full border border-white/10 bg-transparent hover:bg-white/5 text-gray-300 font-semibold py-2.5 text-sm rounded-xl transition-all"
+                  className="btn-secondary w-full py-2.5"
                 >
                   Back to Contacts
                 </button>
@@ -820,13 +821,13 @@ export default function SharePointContacts() {
 
           {/* Preview Panel */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-semibold text-white mb-3">Email Contents Preview</h3>
+            <div className="glass-card p-6 bg-white border border-gray-200 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900 mb-3 pb-3 border-b border-gray-100">Email Contents Preview</h3>
               {selectedTemplateObj ? (
-                <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5 p-4">
-                  <p className="text-xs text-gray-400 mb-2 font-medium">Subject: <span className="text-white font-mono">{selectedTemplateObj.subject}</span></p>
-                  <hr className="border-white/10 my-3" />
-                  <div className="text-xs text-gray-300 bg-black/30 p-1 rounded-lg overflow-y-auto max-h-[400px] border border-white/5">
+                <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50/50 p-4">
+                  <p className="text-xs text-gray-500 mb-2 font-medium">Subject: <span className="text-gray-900 font-semibold font-mono">{selectedTemplateObj.subject}</span></p>
+                  <hr className="border-gray-200 my-3" />
+                  <div className="text-xs text-gray-700 bg-white p-1 rounded-lg overflow-y-auto max-h-[400px] border border-gray-200">
                     <iframe
                       srcDoc={selectedTemplateObj.htmlBody}
                       title="Template Preview"
@@ -836,10 +837,10 @@ export default function SharePointContacts() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-16 text-gray-500 border border-dashed border-white/10 rounded-xl">
-                  <Mail className="w-12 h-12 mx-auto text-gray-700 mb-3" />
-                  <p className="text-sm font-semibold text-gray-400">No template selected yet</p>
-                  <p className="text-xs mt-1">Select a template on the left panel to preview email content here.</p>
+                <div className="text-center py-16 text-gray-400 border border-dashed border-gray-300 rounded-xl bg-gray-50/30">
+                  <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-sm font-semibold text-gray-700">No template selected yet</p>
+                  <p className="text-xs text-gray-500 mt-1">Select a template on the left panel to preview email content here.</p>
                 </div>
               )}
             </div>
@@ -849,32 +850,32 @@ export default function SharePointContacts() {
 
       {/* Preview Template Modal */}
       {isPreviewModalOpen && selectedTemplateObj && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
-          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-white/10 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
+          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-gray-200 bg-white flex flex-col max-h-[90vh] shadow-2xl">
             <button
               onClick={() => setIsPreviewModalOpen(false)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div>
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Eye className="w-5 h-5 text-brand-400" />
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Eye className="w-5 h-5 text-brand-600" />
                 Email Template Preview
               </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Visualizing actual send format for template: <span className="font-semibold text-white">{selectedTemplateObj.name}</span>
+              <p className="text-xs text-gray-500 mt-1">
+                Visualizing actual send format for template: <span className="font-semibold text-gray-800">{selectedTemplateObj.name}</span>
               </p>
             </div>
 
             {/* Email client container mock */}
-            <div className="border border-white/10 rounded-xl overflow-hidden bg-slate-950 flex flex-col flex-1 min-h-[400px]">
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col flex-1 min-h-[400px] shadow-sm">
               {/* Email Client Header */}
-              <div className="bg-white/5 p-4 border-b border-white/10 space-y-2 text-xs text-gray-300">
+              <div className="bg-gray-50 p-4 border-b border-gray-200 space-y-2 text-xs text-gray-600">
                 <div>
                   <span className="text-gray-500 font-semibold inline-block w-16">Subject:</span>
-                  <span className="text-white font-medium text-sm">{selectedTemplateObj.subject}</span>
+                  <span className="text-gray-900 font-bold text-sm">{selectedTemplateObj.subject}</span>
                 </div>
                 <div>
                   <span className="text-gray-500 font-semibold inline-block w-16">From:</span>
@@ -887,8 +888,8 @@ export default function SharePointContacts() {
               </div>
 
               {/* Email Content Frame */}
-              <div className="flex-1 bg-slate-900/50 overflow-y-auto p-4 md:p-6 flex justify-center">
-                <div className="bg-white rounded-lg shadow-xl w-full max-w-[650px] overflow-hidden self-start">
+              <div className="flex-1 bg-gray-100 overflow-y-auto p-4 md:p-6 flex justify-center">
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm w-full max-w-[650px] overflow-hidden self-start">
                   <iframe
                     title="Template Html Preview"
                     onLoad={handleIframeLoad}
@@ -949,20 +950,20 @@ export default function SharePointContacts() {
 
       {/* Delete Confirm Modal */}
       {deletingCampaign && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-500/20 bg-red-950/20 animate-fade-in">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-200 bg-white shadow-2xl">
             <div className="flex justify-between items-start">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-650 text-red-600" />
                 Delete Campaign?
               </h3>
-              <button onClick={() => setDeletingCampaign(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setDeletingCampaign(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-500">
               Are you sure you want to delete{' '}
-              <strong className="text-white">"{deletingCampaign.name}"</strong>? This will permanently
+              <strong className="text-gray-900 font-semibold">"{deletingCampaign.name}"</strong>? This will permanently
               delete the campaign and all its recipient records. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3 pt-2">
@@ -971,7 +972,7 @@ export default function SharePointContacts() {
               </button>
               <button
                 onClick={handleDeleteCampaign}
-                className="bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs px-4 py-2 font-medium transition-all"
+                className="bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all shadow-sm"
               >
                 Delete Permanently
               </button>

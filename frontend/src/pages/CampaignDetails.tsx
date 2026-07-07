@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -38,7 +38,6 @@ export default function CampaignDetails() {
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; active: boolean; status?: 'sending' | 'waiting' } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'sent' | 'failed' | 'pending' | 'skipped'>('all');
 
-
   // ── Recipient detail & edit modals state ──
   const [viewRecipient, setViewRecipient] = useState<Recipient | null>(null);
   const [editRecipient, setEditRecipient] = useState<Recipient | null>(null);
@@ -57,27 +56,27 @@ export default function CampaignDetails() {
   const columns = useMemo(() => [
     columnHelper.accessor('name', {
       header: 'Name',
-      cell: (info) => <span className="font-medium text-white">{info.getValue() || '—'}</span>,
+      cell: (info) => <span className="font-semibold text-gray-900">{info.getValue() || '—'}</span>,
     }),
     columnHelper.accessor('email', {
       header: 'Email',
-      cell: (info) => <span className="font-mono text-xs">{info.getValue()}</span>,
+      cell: (info) => <span className="font-mono text-xs text-gray-600">{info.getValue()}</span>,
     }),
     columnHelper.display({
       id: 'validation',
       header: 'Validation',
       cell: (info) => {
         const row = info.row.original;
-        let valStatus: 'valid' | 'invalid' | 'duplicate' | 'unsubscribed' = 'valid';
+        let valStatus: 'valid' | 'invalid' | 'unsubscribed' = 'valid';
         if (row.error === 'Invalid email format') valStatus = 'invalid';
         else if (row.error === 'Email is unsubscribed') valStatus = 'unsubscribed';
 
-        let color = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-        if (valStatus === 'invalid') color = 'bg-red-500/10 text-red-400 border border-red-500/20';
-        if (valStatus === 'unsubscribed') color = 'bg-gray-500/10 text-gray-400 border border-gray-500/20';
+        let color = 'bg-emerald-50 text-emerald-700 border border-emerald-250 border-emerald-200';
+        if (valStatus === 'invalid') color = 'bg-red-50 text-red-700 border border-red-200';
+        if (valStatus === 'unsubscribed') color = 'bg-gray-100 text-gray-700 border border-gray-300';
 
         return (
-          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${color}`}>
+          <span className={`px-2.5 py-0.5 rounded-lg text-xs font-medium border ${color}`}>
             <span className="capitalize">{valStatus}</span>
           </span>
         );
@@ -97,7 +96,7 @@ export default function CampaignDetails() {
     columnHelper.accessor('error', {
       header: 'Delivery Error',
       cell: (info) => (
-        <span className="text-red-400 text-xs max-w-[200px] truncate block" title={info.getValue() || ''}>
+        <span className="text-red-600 text-xs max-w-[200px] truncate block" title={info.getValue() || ''}>
           {info.getValue() || '—'}
         </span>
       ),
@@ -105,7 +104,7 @@ export default function CampaignDetails() {
     columnHelper.display({
       id: 'template',
       header: 'Template',
-      cell: () => <span className="text-xs text-gray-400">{campaign?.template?.name || '—'}</span>,
+      cell: () => <span className="text-xs text-gray-500">{campaign?.template?.name || '—'}</span>,
     }),
     columnHelper.display({
       id: 'actions',
@@ -119,7 +118,7 @@ export default function CampaignDetails() {
                 setViewRecipient(row);
                 setPreviewTab('html');
               }}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-brand-500/20 hover:text-brand-400 text-gray-400 transition-all border border-white/5"
+              className="p-1.5 rounded-lg bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-600 text-gray-650 text-gray-500 transition-all shadow-sm"
               title="View Rendered Email"
             >
               <Eye className="w-3.5 h-3.5" />
@@ -130,14 +129,14 @@ export default function CampaignDetails() {
                 setEditName(row.name);
                 setEditEmail(row.email);
               }}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-brand-500/20 hover:text-brand-400 text-gray-400 transition-all border border-white/5"
+              className="p-1.5 rounded-lg bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-600 text-gray-650 text-gray-500 transition-all shadow-sm"
               title="Edit Recipient"
             >
               <Edit className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setDeletingRecipient(row)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-gray-400 transition-all border border-white/5"
+              className="p-1.5 rounded-lg bg-white border border-gray-300 hover:bg-red-50 hover:text-red-600 text-gray-650 text-gray-500 transition-all shadow-sm"
               title="Delete Recipient"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -306,33 +305,33 @@ export default function CampaignDetails() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
       </div>
     );
   }
 
   if (!campaign) {
-    return <div className="text-gray-500">Campaign not found</div>;
+    return <div className="text-gray-500 font-medium">Campaign not found</div>;
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-gray-200 pb-5">
         <div className="flex items-center gap-4">
-          <Link to="/contacts" className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
+          <Link to="/contacts" className="p-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-650 text-gray-500 transition-colors shadow-sm">
+            <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
             <h1 className="page-title">Campaign Details</h1>
             <p className="text-gray-500 text-sm mt-1">
-              Campaign: <span className="text-white font-medium">{campaign.name}</span>
+              Campaign: <span className="text-gray-900 font-semibold">{campaign.name}</span>
               {campaign.template && ` • Template: ${campaign.template.name}`}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2 text-xs text-gray-500 font-medium bg-white border border-gray-200 px-3 py-1.5 rounded-xl shadow-sm">
           <Calendar className="w-4 h-4 text-gray-400" />
           <span>
             {new Date(campaign.createdAt).toLocaleDateString()}{' '}
@@ -343,10 +342,10 @@ export default function CampaignDetails() {
 
       {/* Processing / Sending indicator */}
       {((campaign.status === 'processing' && !shouldLaunch && !sending) || (batchProgress && batchProgress.active)) && (
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-3">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3 shadow-sm">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-            <p className="text-sm text-blue-400 font-medium">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+            <p className="text-sm text-blue-800 font-semibold">
               {batchProgress && batchProgress.active
                 ? batchProgress.status === 'waiting'
                   ? `Batch ${batchProgress.current} of ${batchProgress.total} completed. Cooling down for 15s to keep mailbox safe...`
@@ -355,9 +354,9 @@ export default function CampaignDetails() {
             </p>
           </div>
           {batchProgress && batchProgress.active && (
-            <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden border border-white/5">
+            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200 shadow-inner">
               <div
-                className="bg-brand-500 h-full transition-all duration-300 rounded-full"
+                className="bg-brand-600 h-full transition-all duration-350 transition-all duration-300 rounded-full"
                 style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
               />
             </div>
@@ -367,7 +366,7 @@ export default function CampaignDetails() {
 
       {/* Delivery Progress Stats */}
       <div className="space-y-2">
-        <h2 className="section-title text-sm text-gray-400">Delivery Status</h2>
+        <h2 className="section-title text-sm text-gray-500 font-semibold">Delivery Status</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatsCard
             title="Total Recipients"
@@ -418,15 +417,15 @@ export default function CampaignDetails() {
           <h2 className="section-title flex items-center gap-2">
             Recipient Logs
             {selectedFilter !== 'all' && (
-              <span className="text-xs px-2 py-0.5 rounded bg-white/5 text-gray-400 font-normal normal-case border border-white/5">
-                Showing: <span className="capitalize font-semibold text-white">{selectedFilter}</span>
+              <span className="text-xs px-2.5 py-0.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200 font-bold normal-case">
+                Showing: <span className="capitalize">{selectedFilter}</span>
               </span>
             )}
           </h2>
           {selectedFilter !== 'all' && (
             <button
               onClick={() => setSelectedFilter('all')}
-              className="text-xs text-brand-400 hover:text-brand-300 transition-colors font-medium"
+              className="text-xs text-brand-600 hover:text-brand-700 transition-colors font-semibold"
             >
               Clear Filter
             </button>
@@ -437,31 +436,31 @@ export default function CampaignDetails() {
 
       {/* View Email Modal */}
       {viewRecipient && campaign.template && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
-          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-white/10 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
+          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-gray-200 bg-white flex flex-col max-h-[90vh] shadow-2xl">
             <button
               onClick={() => setViewRecipient(null)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div>
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Mail className="w-5 h-5 text-brand-400" />
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Mail className="w-5 h-5 text-brand-600" />
                 Email Delivery Details
               </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Campaign Name: <span className="font-semibold text-white">{campaign.name}</span>
+              <p className="text-xs text-gray-500 mt-1">
+                Campaign Name: <span className="font-semibold text-gray-800">{campaign.name}</span>
               </p>
             </div>
 
             {/* Subject Client Mock Box */}
-            <div className="bg-slate-950 border border-white/10 rounded-xl p-4 space-y-3 text-xs text-gray-300">
-              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 text-xs text-gray-600 shadow-sm">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                 <div className="max-w-[80%]">
-                  <span className="text-gray-500 font-semibold inline-block w-16">Subject:</span>
-                  <span className="text-white font-medium text-sm">
+                  <span className="text-gray-400 font-semibold inline-block w-16">Subject:</span>
+                  <span className="text-gray-900 font-bold text-sm">
                     {campaign.template.subject
                       .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
                       .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
@@ -470,44 +469,44 @@ export default function CampaignDetails() {
                 </div>
                 <StatusBadge status={viewRecipient.status} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-gray-400">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-gray-500">
                 <div>
-                  <span className="text-gray-500 font-semibold inline-block w-16">To:</span>
-                  <span className="text-gray-200">{viewRecipient.name} &lt;{viewRecipient.email}&gt;</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">To:</span>
+                  <span className="text-gray-800 font-medium">{viewRecipient.name} &lt;{viewRecipient.email}&gt;</span>
                 </div>
                 <div className="sm:text-right">
-                  <span className="text-gray-500 font-semibold inline-block w-16">Sent At:</span>
-                  <span className="text-gray-200">{viewRecipient.sentAt ? new Date(viewRecipient.sentAt).toLocaleString() : '—'}</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">Sent At:</span>
+                  <span className="text-gray-800 font-medium">{viewRecipient.sentAt ? new Date(viewRecipient.sentAt).toLocaleString() : '—'}</span>
                 </div>
                  <div>
-                  <span className="text-gray-500 font-semibold inline-block w-16">From:</span>
-                  <span className="text-gray-200">Vishv Umiya Foundation &lt;{campaign.senderEmail || 'marketing@vuf.org'}&gt;</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">From:</span>
+                  <span className="text-gray-800 font-medium">Vishv Umiya Foundation &lt;{campaign.senderEmail || 'marketing@vuf.org'}&gt;</span>
                 </div>
                 <div className="sm:text-right">
-                  <span className="text-gray-500 font-semibold inline-block w-16">Template:</span>
-                  <span className="text-gray-200">{campaign.template.name}</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">Template:</span>
+                  <span className="text-gray-800 font-medium">{campaign.template.name}</span>
                 </div>
               </div>
             </div>
 
             {/* Tabs for HTML vs Plain Text */}
-            <div className="flex border-b border-white/10">
+            <div className="flex border-b border-gray-200">
               <button
                 onClick={() => setPreviewTab('html')}
-                className={`py-2.5 px-4 text-xs font-semibold transition-all border-b-2 ${
+                className={`py-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
                   previewTab === 'html'
-                    ? 'border-brand-500 text-brand-400'
-                    : 'border-transparent text-gray-400 hover:text-white'
+                    ? 'border-brand-600 text-brand-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
                 }`}
               >
                 HTML Preview
               </button>
               <button
                 onClick={() => setPreviewTab('text')}
-                className={`py-2.5 px-4 text-xs font-semibold transition-all border-b-2 ${
+                className={`py-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
                   previewTab === 'text'
-                    ? 'border-brand-500 text-brand-400'
-                    : 'border-transparent text-gray-400 hover:text-white'
+                    ? 'border-brand-600 text-brand-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
                 }`}
               >
                 Plain Text View
@@ -515,9 +514,9 @@ export default function CampaignDetails() {
             </div>
 
             {/* Body display */}
-            <div className="flex-1 bg-slate-900 border border-white/5 rounded-xl p-4 min-h-[300px] overflow-y-auto flex flex-col">
+            <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-4 min-h-[300px] overflow-y-auto flex flex-col shadow-inner">
               {previewTab === 'html' ? (
-                <div className="bg-white rounded-lg p-2 flex-1 shadow-lg overflow-hidden flex flex-col">
+                <div className="bg-white rounded-lg p-2 flex-1 shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                   <iframe
                     title="Rendered Email HTML"
                     className="w-full flex-1 border-none bg-white rounded min-h-[250px]"
@@ -549,7 +548,7 @@ export default function CampaignDetails() {
                   />
                 </div>
               ) : (
-                <pre className="text-xs font-mono text-gray-300 bg-black/40 p-4 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap">
+                <pre className="text-xs font-mono text-gray-700 bg-white p-4 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap border border-gray-200 shadow-sm">
                   {campaign.template.plainTextBody
                     .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
                     .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
@@ -573,36 +572,36 @@ export default function CampaignDetails() {
 
       {/* Edit Recipient Modal */}
       {editRecipient && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-white/10">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-gray-200 bg-white shadow-2xl">
             <div className="flex justify-between items-start">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Edit className="w-5 h-5 text-brand-400" />
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-brand-600" />
                 Edit Recipient Details
               </h3>
-              <button onClick={() => setEditRecipient(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setEditRecipient(null)} className="text-gray-400 hover:text-gray-650 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4 py-2">
               <div className="space-y-1">
-                <label className="text-xs text-gray-400">Recipient Name</label>
+                <label className="text-xs font-medium text-gray-500">Recipient Name</label>
                 <input
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-gray-905 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-brand-500 transition-colors shadow-sm"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs text-gray-400">Recipient Email</label>
+                <label className="text-xs font-medium text-gray-500">Recipient Email</label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-gray-905 text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-brand-500 transition-colors shadow-sm"
                 />
               </div>
             </div>
@@ -618,7 +617,7 @@ export default function CampaignDetails() {
               <button
                 onClick={handleEditRecipient}
                 disabled={isEditing}
-                className="btn-primary text-xs px-4 py-2 font-medium flex items-center gap-1.5"
+                className="btn-primary text-xs px-4 py-2 font-semibold flex items-center gap-1.5 shadow-sm"
               >
                 {isEditing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {isEditing ? 'Saving…' : 'Save Changes'}
@@ -630,19 +629,19 @@ export default function CampaignDetails() {
 
       {/* Delete Confirm Modal */}
       {deletingRecipient && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-500/20 bg-red-950/20 animate-fade-in">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-200 bg-white shadow-2xl">
             <div className="flex justify-between items-start">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
                 Remove Recipient?
               </h3>
-              <button onClick={() => setDeletingRecipient(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setDeletingRecipient(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-gray-400">
-              Are you sure you want to remove <strong className="text-white">{deletingRecipient.name} ({deletingRecipient.email})</strong> from this campaign history?
+            <p className="text-sm text-gray-500">
+              Are you sure you want to remove <strong className="text-gray-900 font-semibold">{deletingRecipient.name} ({deletingRecipient.email})</strong> from this campaign history?
               This action will decrement the campaign status counters and delete the delivery logs for this recipient.
             </p>
             <div className="flex justify-end gap-3 pt-2">
@@ -656,7 +655,7 @@ export default function CampaignDetails() {
               <button
                 onClick={handleDeleteRecipient}
                 disabled={isDeleting}
-                className="bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs px-4 py-2 font-medium transition-all flex items-center gap-1.5"
+                className="bg-red-650 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all flex items-center gap-1.5 shadow-sm"
               >
                 {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Remove

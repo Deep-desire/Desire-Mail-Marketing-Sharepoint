@@ -1,3 +1,4 @@
+import logo from '../Images/logo.png';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -34,27 +35,25 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center gradient-mesh px-4">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl" />
       </div>
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-8 animate-fade-in">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-brand-500 to-purple-500 flex items-center justify-center mb-4 shadow-lg shadow-brand-500/30">
-            <Mail className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">Desire Mail Marketing</h1>
+          <img src={logo} alt="Desire Mail Logo" className="w-16 h-16 mx-auto object-contain rounded-2xl mb-4 shadow-md shadow-brand-500/5" />
+          <h1 className="text-3xl font-bold text-gray-900">Desire Mail Marketing</h1>
           <p className="text-gray-500 mt-2">Sign in to manage your campaigns</p>
         </div>
 
         {/* Login Card */}
-        <div className="glass-card p-8 animate-slide-up">
+        <div className="glass-card p-8 bg-white border border-gray-200 shadow-lg animate-slide-up">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
               <label htmlFor="login-email" className="label-text">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   id="login-email"
                   type="email"
@@ -70,14 +69,14 @@ export default function Login() {
                 />
               </div>
               {errors.email && (
-                <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>
+                <p className="text-red-650 text-red-600 text-xs mt-1">{errors.email.message}</p>
               )}
             </div>
 
             <div>
               <label htmlFor="login-password" className="label-text">Password</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   id="login-password"
                   type="password"
@@ -89,7 +88,7 @@ export default function Login() {
                 />
               </div>
               {errors.password && (
-                <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>
+                <p className="text-red-650 text-red-600 text-xs mt-1">{errors.password.message}</p>
               )}
             </div>
 
@@ -109,8 +108,8 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-white/10 text-center">
-            <p className="text-xs text-gray-600">
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-500">
               Default: admin@desireinfoweb.com / admin123
             </p>
           </div>

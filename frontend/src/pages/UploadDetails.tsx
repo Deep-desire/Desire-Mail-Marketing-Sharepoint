@@ -110,11 +110,11 @@ export default function UploadDetails() {
   const columns = useMemo(() => [
     columnHelper.accessor('name', {
       header: 'Name',
-      cell: (info) => <span className="font-medium text-white">{info.getValue()}</span>,
+      cell: (info) => <span className="font-semibold text-gray-900">{info.getValue()}</span>,
     }),
     columnHelper.accessor('email', {
       header: 'Email',
-      cell: (info) => info.getValue(),
+      cell: (info) => <span className="font-mono text-xs text-gray-650 text-gray-600">{info.getValue()}</span>,
     }),
     columnHelper.accessor('status', {
       header: 'Validation',
@@ -124,7 +124,7 @@ export default function UploadDetails() {
       header: 'Delivery Status',
       cell: (info) => {
         const val = info.getValue();
-        return val ? <StatusBadge status={val} /> : <span className="text-gray-600">—</span>;
+        return val ? <StatusBadge status={val} /> : <span className="text-gray-400 font-medium">—</span>;
       },
     }),
     columnHelper.accessor('sentAt', {
@@ -137,7 +137,7 @@ export default function UploadDetails() {
     columnHelper.accessor('deliveryError', {
       header: 'Delivery Error',
       cell: (info) => (
-        <span className="text-red-400 text-xs max-w-[200px] truncate block">
+        <span className="text-red-600 text-xs max-w-[200px] truncate block font-medium">
           {info.getValue() || '—'}
         </span>
       ),
@@ -149,22 +149,22 @@ export default function UploadDetails() {
         const contact = info.row.original;
         const isProcessing = upload?.status === 'processing';
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => handleEditClick(contact)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:text-brand-400 transition-colors text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-600 text-gray-500 transition-colors shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
               disabled={isProcessing}
               title={isProcessing ? "Disabled while sending" : "Edit Contact"}
             >
-              <Pencil className="w-4 h-4" />
+              <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => handleDeleteClick(contact)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-colors text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg bg-white border border-gray-300 hover:bg-red-50 hover:text-red-605 hover:text-red-600 text-gray-500 transition-colors shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
               disabled={isProcessing}
               title={isProcessing ? "Disabled while sending" : "Delete Contact"}
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         );
@@ -204,7 +204,7 @@ export default function UploadDetails() {
         setUpload(uploadRes.data);
         setContacts(contactsRes.data.contacts);
       })
-      .catch((err) => {
+      .catch(() => {
         toast.error('Failed to load details');
       });
   };
@@ -333,27 +333,27 @@ export default function UploadDetails() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
       </div>
     );
   }
 
   if (!upload) {
-    return <div className="text-gray-500">Upload not found</div>;
+    return <div className="text-gray-500 font-medium">Upload not found</div>;
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-gray-200 pb-5">
         <div className="flex items-center gap-4">
-          <Link to="/uploads" className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
+          <Link to="/uploads" className="p-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 text-gray-500 transition-colors shadow-sm">
+            <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
             <h1 className="page-title">Upload Details</h1>
             <p className="text-gray-500 text-sm mt-1">
-              File: {upload.originalName} {upload.template && `• Active Template: ${upload.template.name}`}
+              File: <span className="text-gray-900 font-semibold">{upload.originalName}</span> {upload.template && `• Active Template: ${upload.template.name}`}
             </p>
           </div>
         </div>
@@ -362,7 +362,7 @@ export default function UploadDetails() {
           {upload.status === 'idle' && (
             <button
               onClick={handleOpenSendModal}
-              className="btn-primary flex items-center gap-2 text-sm font-medium"
+              className="btn-primary flex items-center gap-2 text-sm font-semibold shadow-sm"
             >
               <Play className="w-4 h-4" />
               Send Email Template
@@ -373,19 +373,19 @@ export default function UploadDetails() {
 
       {/* Processing indicator */}
       {(upload.status === 'processing' || (batchProgress && batchProgress.active)) && (
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-3">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3 shadow-sm">
           <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-            <p className="text-sm text-blue-400 font-medium">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+            <p className="text-sm text-blue-800 font-semibold">
               {batchProgress && batchProgress.active
                 ? `Sending emails... Batch ${batchProgress.current} of ${batchProgress.total} completed.`
                 : 'Sending emails in progress...'}
             </p>
           </div>
           {batchProgress && batchProgress.active && (
-            <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden border border-white/5">
+            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200 shadow-inner">
               <div
-                className="bg-brand-500 h-full transition-all duration-300 rounded-full"
+                className="bg-brand-600 h-full transition-all duration-300 rounded-full"
                 style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
               />
             </div>
@@ -395,20 +395,20 @@ export default function UploadDetails() {
 
       {/* File Stats Summary */}
       <div className="space-y-2">
-        <h2 className="section-title text-sm text-gray-400">Excel Summary</h2>
+        <h2 className="section-title text-sm text-gray-500 font-semibold">Excel Summary</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <InfoCard label="Total Rows" value={upload.totalRows} />
-          <InfoCard label="Valid" value={upload.validEmails} color="text-emerald-400" />
-          <InfoCard label="Invalid" value={upload.invalidEmails} color="text-red-400" />
-          <InfoCard label="Duplicates" value={upload.duplicateEmails} color="text-amber-400" />
-          <InfoCard label="Unsubscribed" value={upload.unsubscribedEmails} color="text-gray-400" />
+          <InfoCard label="Valid" value={upload.validEmails} color="text-emerald-600" />
+          <InfoCard label="Invalid" value={upload.invalidEmails} color="text-red-650 text-red-600" />
+          <InfoCard label="Duplicates" value={upload.duplicateEmails} color="text-amber-600" />
+          <InfoCard label="Unsubscribed" value={upload.unsubscribedEmails} color="text-gray-500" />
         </div>
       </div>
 
       {/* Delivery Progress Stats */}
       {upload.status !== 'idle' && (
         <div className="space-y-2">
-          <h2 className="section-title text-sm text-gray-400">Delivery Status</h2>
+          <h2 className="section-title text-sm text-gray-505 text-gray-500 font-semibold">Delivery Status</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <StatsCard
               title="Total Recipients"
@@ -452,19 +452,19 @@ export default function UploadDetails() {
 
       {/* Send Template Modal */}
       {isSendModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="glass-card max-w-md w-full p-6 space-y-6 relative border border-white/10 animate-scale-in">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-6 relative border border-gray-200 bg-white shadow-2xl rounded-2xl">
             <button
               onClick={() => setIsSendModalOpen(false)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div>
-              <h3 className="text-xl font-bold text-white">Send Email Template</h3>
-              <p className="text-sm text-gray-400 mt-1">
-                Select a template to send to the {upload.validEmails} valid contacts in this list.
+              <h3 className="text-xl font-bold text-gray-950">Send Email Template</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Select a template to send to the <span className="font-semibold text-brand-650 text-brand-600">{upload.validEmails}</span> valid contacts in this list.
               </p>
             </div>
 
@@ -481,7 +481,7 @@ export default function UploadDetails() {
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                     Choose Template
                   </label>
                   
@@ -491,12 +491,12 @@ export default function UploadDetails() {
                       <button
                         type="button"
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 hover:border-white/20 transition-all text-sm flex items-center justify-between text-left"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 hover:border-gray-400 transition-all text-sm flex items-center justify-between text-left shadow-sm font-semibold cursor-pointer"
                       >
                         <span className="truncate">
                           {selectedTemplate ? selectedTemplate.name : 'Select a template'}
                         </span>
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-4 h-4 text-gray-450 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                       </button>
 
                       {/* Custom Styled Dropdown Options */}
@@ -509,8 +509,8 @@ export default function UploadDetails() {
                           />
                           
                           {/* Options List */}
-                          <div className="absolute left-0 right-0 mt-1.5 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto">
-                            <div className="p-1 divide-y divide-white/5">
+                          <div className="absolute left-0 right-0 mt-1.5 bg-white border border-gray-250 border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+                            <div className="p-1 divide-y divide-gray-100">
                               {templates.map((t) => {
                                 const isSelected = t.id === selectedTemplateId;
                                 return (
@@ -521,15 +521,15 @@ export default function UploadDetails() {
                                       setSelectedTemplateId(t.id);
                                       setIsDropdownOpen(false);
                                     }}
-                                    className={`w-full px-4 py-3 text-left text-sm rounded-lg transition-colors flex items-center justify-between ${
+                                    className={`w-full px-4 py-2.5 text-left text-sm rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
                                       isSelected
-                                        ? 'bg-brand-600/30 text-white font-semibold'
-                                        : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                                        ? 'bg-brand-50 text-brand-700 font-bold'
+                                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-950 font-medium'
                                     }`}
                                   >
                                     <span className="truncate">{t.name}</span>
                                     {isSelected && (
-                                      <span className="w-1.5 h-1.5 rounded-full bg-brand-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                                      <span className="w-1.5 h-1.5 rounded-full bg-brand-600" />
                                     )}
                                   </button>
                                 );
@@ -547,10 +547,10 @@ export default function UploadDetails() {
                         setIframeHeight('400px');
                         setIsPreviewModalOpen(true);
                       }}
-                      className={`p-3 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
+                      className={`p-3 rounded-xl border transition-all flex items-center justify-center shrink-0 shadow-sm cursor-pointer ${
                         selectedTemplateId
-                          ? 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10 hover:border-white/20'
-                          : 'bg-white/5 border-white/5 text-gray-600 cursor-not-allowed'
+                          ? 'bg-white border-gray-300 text-gray-500 hover:text-brand-600 hover:bg-gray-50 hover:border-brand-500'
+                          : 'bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed'
                       }`}
                       title="Preview Template"
                       disabled={!selectedTemplateId}
@@ -589,46 +589,46 @@ export default function UploadDetails() {
 
       {/* Preview Template Modal */}
       {isPreviewModalOpen && selectedTemplate && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
-          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-white/10 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
+          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-gray-205 border-gray-200 bg-white flex flex-col max-h-[90vh] shadow-2xl rounded-2xl">
             <button
               onClick={() => setIsPreviewModalOpen(false)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-150 transition-colors text-gray-550 text-gray-500 shadow-sm"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div>
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Eye className="w-5 h-5 text-brand-400" />
+              <h3 className="text-xl font-bold text-gray-950 flex items-center gap-2">
+                <Eye className="w-5 h-5 text-brand-600" />
                 Email Template Preview
               </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Visualizing actual send format for template: <span className="font-semibold text-white">{selectedTemplate.name}</span>
+              <p className="text-xs text-gray-500 mt-1">
+                Visualizing actual send format for template: <span className="font-bold text-gray-800">{selectedTemplate.name}</span>
               </p>
             </div>
 
             {/* Email client container mock */}
-            <div className="border border-white/10 rounded-xl overflow-hidden bg-slate-950 flex flex-col flex-1 min-h-[400px]">
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col flex-1 min-h-[400px] shadow-sm">
               {/* Email Client Header */}
-              <div className="bg-white/5 p-4 border-b border-white/10 space-y-2 text-xs text-gray-300">
+              <div className="bg-gray-50 p-4 border-b border-gray-200 space-y-2 text-xs text-gray-650 text-gray-650 text-gray-600">
                 <div>
-                  <span className="text-gray-500 font-semibold inline-block w-16">Subject:</span>
-                  <span className="text-white font-medium text-sm">{selectedTemplate.subject}</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">Subject:</span>
+                  <span className="text-gray-900 font-bold text-sm">{selectedTemplate.subject}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 font-semibold inline-block w-16">From:</span>
-                  <span>Vishv Umiya Foundation (VUF) &lt;{senderEmail}&gt;</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">From:</span>
+                  <span className="text-gray-800 font-medium">Vishv Umiya Foundation (VUF) &lt;{senderEmail}&gt;</span>
                 </div>
                 <div>
-                  <span className="text-gray-500 font-semibold inline-block w-16">To:</span>
-                  <span>deep &lt;deep@example.com&gt;</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">To:</span>
+                  <span className="text-gray-800 font-medium">deep &lt;deep@example.com&gt;</span>
                 </div>
               </div>
               
               {/* Email Content Frame */}
-              <div className="flex-1 bg-slate-900/50 overflow-y-auto p-4 md:p-6 flex justify-center">
-                <div className="bg-white rounded-lg shadow-xl w-full max-w-[650px] overflow-hidden self-start">
+              <div className="flex-1 bg-gray-100 overflow-y-auto p-4 md:p-6 flex justify-center shadow-inner">
+                <div className="bg-white rounded-lg shadow-md w-full max-w-[650px] overflow-hidden self-start border border-gray-200">
                   <iframe
                     title="Template Html Body Preview"
                     onLoad={handleIframeLoad}
@@ -690,49 +690,49 @@ export default function UploadDetails() {
 
       {/* Edit Contact Modal */}
       {isEditModalOpen && editingContact && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <form
             onSubmit={handleUpdateContact}
-            className="glass-card max-w-md w-full p-6 space-y-6 relative border border-white/10 animate-scale-in"
+            className="glass-card max-w-md w-full p-6 space-y-6 relative border border-gray-205 border-gray-200 bg-white shadow-2xl rounded-2xl"
           >
             <button
               type="button"
               onClick={() => setIsEditModalOpen(false)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div>
-              <h3 className="text-xl font-bold text-white">Edit Contact</h3>
-              <p className="text-sm text-gray-400 mt-1">
+              <h3 className="text-xl font-bold text-gray-955 text-gray-950">Edit Contact</h3>
+              <p className="text-sm text-gray-500 mt-1">
                 Modify contact information. Validation status will automatically re-evaluate.
               </p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
                   Name
                 </label>
                 <input
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 hover:border-white/20 transition-all text-sm"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-905 text-gray-900 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 hover:border-gray-400 transition-all text-sm shadow-sm font-medium"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
                   Email Address
                 </label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 hover:border-white/20 transition-all text-sm"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-905 text-gray-900 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 hover:border-gray-400 transition-all text-sm shadow-sm font-medium"
                   required
                 />
               </div>
@@ -765,39 +765,39 @@ export default function UploadDetails() {
 
       {/* Delete Contact Modal */}
       {isDeleteModalOpen && deletingContact && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="glass-card max-w-md w-full p-6 space-y-6 relative border border-white/10 animate-scale-in">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-6 relative border border-gray-205 border-gray-200 bg-white shadow-2xl rounded-2xl animate-scale-in">
             <button
               onClick={() => setIsDeleteModalOpen(false)}
-              className="absolute right-4 top-4 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-gray-400"
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className="flex gap-4 items-start">
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl shrink-0">
-                <Trash2 className="w-6 h-6 text-red-400" />
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl shrink-0 shadow-sm">
+                <Trash2 className="w-6 h-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white">Delete Contact</h3>
-                <p className="text-sm text-gray-400 mt-1">
-                  Are you sure you want to delete <span className="font-semibold text-white">{deletingContact.name}</span>?
+                <h3 className="text-xl font-bold text-gray-950">Delete Contact</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Are you sure you want to delete <span className="font-bold text-gray-900">{deletingContact.name}</span>?
                 </p>
               </div>
             </div>
 
-            <div className="bg-white/5 border border-white/5 rounded-xl p-4 space-y-2 text-sm text-gray-300">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2 text-sm text-gray-700 shadow-inner">
               <div>
-                <span className="text-gray-500 font-medium inline-block w-16">Email:</span>
-                <span className="font-mono text-white">{deletingContact.email}</span>
+                <span className="text-gray-400 font-semibold inline-block w-16">Email:</span>
+                <span className="font-mono text-gray-900 font-semibold">{deletingContact.email}</span>
               </div>
               <div>
-                <span className="text-gray-500 font-medium inline-block w-16">Status:</span>
-                <span className="capitalize">{deletingContact.status}</span>
+                <span className="text-gray-400 font-semibold inline-block w-16">Status:</span>
+                <span className="capitalize text-gray-900 font-semibold">{deletingContact.status}</span>
               </div>
             </div>
 
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-red-600 font-medium">
               * This action cannot be undone. Excel upload metrics will automatically update.
             </p>
 
@@ -811,7 +811,7 @@ export default function UploadDetails() {
               </button>
               <button
                 onClick={handleDeleteContact}
-                className="bg-red-600 hover:bg-red-500 text-white rounded-xl font-semibold shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all w-full text-sm py-2.5 flex items-center justify-center gap-2"
+                className="btn-danger w-full text-sm py-2.5 flex items-center justify-center gap-2 shadow-sm"
                 disabled={deleting}
               >
                 {deleting ? (
@@ -828,10 +828,10 @@ export default function UploadDetails() {
   );
 }
 
-function InfoCard({ label, value, color = 'text-white' }: { label: string; value: number; color?: string }) {
+function InfoCard({ label, value, color = 'text-gray-900' }: { label: string; value: number; color?: string }) {
   return (
-    <div className="glass-card p-4 text-center">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
+    <div className="glass-card p-4 text-center bg-white border border-gray-200 shadow-sm rounded-xl">
+      <p className="text-xs text-gray-500 mb-1 font-semibold">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{value}</p>
     </div>
   );

@@ -116,30 +116,30 @@ function ConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-brand-950/95 border border-white/10 rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh]">
+      <div className="relative w-full max-w-2xl bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50/50">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-500/20 border border-brand-500/20 flex items-center justify-center">
-              <Database className="w-5 h-5 text-brand-400" />
+            <div className="w-9 h-9 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center shadow-sm">
+              <Database className="w-5 h-5 text-brand-600" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-bold text-gray-950">
                 {mode === 'create' ? 'Add SharePoint List' : 'Edit SharePoint List'}
               </h2>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 mt-0.5">
                 {mode === 'create'
                   ? 'Connect a new SharePoint list as a contacts source'
                   : 'Update the configuration for this list'}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition">
+          <button onClick={onClose} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition shadow-sm">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -147,11 +147,11 @@ function ConfigModal({
         <div className="p-6 space-y-6">
           {/* Basic info */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">List Identity</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">List Identity</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  Display Name <span className="text-red-400">*</span>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Display Name <span className="text-red-600">*</span>
                 </label>
                 <input
                   id="config-name"
@@ -159,12 +159,12 @@ function ConfigModal({
                   value={form.name}
                   onChange={(e) => field('name', e.target.value)}
                   placeholder='e.g. "Marketing Contacts Q3"'
-                  className="w-full bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition placeholder-gray-600"
+                  className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition placeholder-gray-400 shadow-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  SharePoint Site ID <span className="text-red-400">*</span>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  SharePoint Site ID <span className="text-red-600">*</span>
                 </label>
                 <input
                   id="config-site-id"
@@ -172,13 +172,13 @@ function ConfigModal({
                   value={form.siteId}
                   onChange={(e) => field('siteId', e.target.value)}
                   placeholder='e.g. tenant.sharepoint.com,abc-xxx,def-yyy'
-                  className="w-full bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition placeholder-gray-600 font-mono"
+                  className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition placeholder-gray-400 font-mono shadow-sm"
                 />
-                <p className="text-xs text-gray-600 mt-1">Found in the SP_SITE_ID format: host,siteGuid,webGuid</p>
+                <p className="text-xs text-gray-400 mt-1">Found in the SP_SITE_ID format: host,siteGuid,webGuid</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  List ID <span className="text-red-400">*</span>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  List ID <span className="text-red-600">*</span>
                 </label>
                 <input
                   id="config-list-id"
@@ -186,18 +186,18 @@ function ConfigModal({
                   value={form.listId}
                   onChange={(e) => field('listId', e.target.value)}
                   placeholder='e.g. 6a0c9cb8-aa15-48f4-b242-62041a87f29a'
-                  className="w-full bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition placeholder-gray-600 font-mono"
+                  className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition placeholder-gray-400 font-mono shadow-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Sort Order</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Sort Order</label>
                 <input
                   id="config-sort-order"
                   type="number"
                   value={form.sortOrder}
                   onChange={(e) => field('sortOrder', parseInt(e.target.value) || 0)}
                   min={0}
-                  className="w-24 bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition"
+                  className="w-24 bg-white border border-gray-300 focus:border-brand-500 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition shadow-sm"
                 />
               </div>
             </div>
@@ -205,37 +205,37 @@ function ConfigModal({
 
           {/* Credentials — optional override */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            <div className="flex items-center gap-2 mb-4 border-t border-gray-100 pt-5">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">
                 Credentials Override
               </h3>
-              <span className="text-xs text-gray-600 italic">(optional — blank = use system defaults from .env)</span>
+              <span className="text-xs text-gray-400 italic">(optional — blank = use system defaults from .env)</span>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Tenant ID</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tenant ID</label>
                 <input
                   id="config-tenant-id"
                   type="text"
                   value={form.tenantId}
                   onChange={(e) => field('tenantId', e.target.value)}
                   placeholder="Leave blank to use system default"
-                  className="w-full bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition placeholder-gray-600 font-mono"
+                  className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition placeholder-gray-400 font-mono shadow-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Client ID (App ID)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Client ID (App ID)</label>
                 <input
                   id="config-client-id"
                   type="text"
                   value={form.clientId}
                   onChange={(e) => field('clientId', e.target.value)}
                   placeholder="Leave blank to use system default"
-                  className="w-full bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 text-white text-sm outline-none transition placeholder-gray-600 font-mono"
+                  className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition placeholder-gray-400 font-mono shadow-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Client Secret</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Client Secret</label>
                 <div className="relative">
                   <input
                     id="config-client-secret"
@@ -243,12 +243,12 @@ function ConfigModal({
                     value={form.clientSecret}
                     onChange={(e) => field('clientSecret', e.target.value)}
                     placeholder={initial?.clientSecret ? 'Enter new value to update (currently set)' : 'Leave blank to use system default'}
-                    className="w-full bg-white/5 border border-white/10 focus:border-brand-500 rounded-xl px-4 py-2.5 pr-12 text-white text-sm outline-none transition placeholder-gray-600 font-mono"
+                    className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 pr-12 text-gray-900 text-sm outline-none transition placeholder-gray-400 font-mono shadow-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setShowSecret((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
                     {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -261,41 +261,41 @@ function ConfigModal({
           {testResult && (
             <div className={`flex items-start gap-3 p-4 rounded-xl border ${
               testResult.success
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                : 'bg-red-500/10 border-red-500/20 text-red-400'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}>
               {testResult.success
                 ? <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 : <XCircle className="w-5 h-5 shrink-0 mt-0.5" />}
               <div>
-                <p className="text-sm font-semibold">{testResult.success ? 'Connection Successful' : 'Connection Failed'}</p>
-                <p className="text-xs mt-0.5 opacity-80">{testResult.message}</p>
+                <p className="text-sm font-bold">{testResult.success ? 'Connection Successful' : 'Connection Failed'}</p>
+                <p className="text-xs mt-0.5 opacity-90">{testResult.message}</p>
               </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-white/10 gap-3">
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50/50 gap-3">
           <button
             id="test-connection-btn"
             onClick={handleTest}
             disabled={testing || mode === 'create'}
             title={mode === 'create' ? 'Save first, then test' : 'Test connection to this SharePoint list'}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-sm text-gray-300 hover:text-white hover:border-white/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-secondary flex items-center gap-2 h-10 px-4 text-xs font-semibold shadow-sm"
           >
             {testing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
             Test Connection
           </button>
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-white hover:bg-white/5 transition">
+            <button onClick={onClose} className="btn-secondary border-none bg-transparent hover:bg-gray-150 px-4 py-2 shadow-none text-gray-500 hover:text-gray-900">
               Cancel
             </button>
             <button
               id="save-config-btn"
               onClick={handleSave}
               disabled={saving}
-              className="btn-primary flex items-center gap-2 px-5 py-2 rounded-xl text-sm"
+              className="btn-primary flex items-center gap-2 h-10 px-5 text-sm"
             >
               {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
               {mode === 'create' ? 'Create List' : 'Save Changes'}
@@ -390,15 +390,15 @@ export default function SharePointSettings() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
           <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-            <button onClick={() => navigate('/contacts')} className="hover:text-gray-300 transition">Contacts</button>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-gray-300">SharePoint Lists</span>
+            <button onClick={() => navigate('/contacts')} className="hover:text-brand-600 transition font-medium">Contacts</button>
+            <ChevronRight className="w-3 h-3 text-gray-400" />
+            <span className="text-gray-800 font-semibold">SharePoint Lists</span>
           </div>
           <h1 className="page-title flex items-center gap-3">
-            <Settings className="w-6 h-6 text-brand-400" />
+            <Settings className="w-6 h-6 text-brand-600" />
             SharePoint List Manager
           </h1>
           <p className="text-gray-500 mt-1 text-sm">
@@ -416,32 +416,32 @@ export default function SharePointSettings() {
       </div>
 
       {/* Info Banner */}
-      <div className="flex items-start gap-3 p-4 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-300">
-        <Shield className="w-5 h-5 shrink-0 mt-0.5 text-blue-400" />
+      <div className="flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-800 shadow-sm">
+        <Shield className="w-5 h-5 shrink-0 mt-0.5 text-blue-600" />
         <div className="text-sm">
-          <p className="font-semibold text-blue-300 mb-0.5">Credential Fallback</p>
-          <p className="text-blue-400/80">
-            Credentials left blank will automatically use the system defaults from your <code className="text-blue-300 bg-blue-500/20 px-1 rounded">.env</code> file
-            (<code className="text-blue-300 bg-blue-500/20 px-1 rounded">TENANT_ID</code>,
-            <code className="text-blue-300 bg-blue-500/20 px-1 rounded">SP_CLIENT_ID</code>,
-            <code className="text-blue-300 bg-blue-500/20 px-1 rounded">SP_CLIENT_SECRET</code>).
+          <p className="font-bold text-blue-900 mb-0.5">Credential Fallback</p>
+          <p className="text-blue-750">
+            Credentials left blank will automatically use the system defaults from your <code className="text-blue-850 bg-blue-100 px-1 rounded font-mono">.env</code> file
+            (<code className="text-blue-850 bg-blue-100 px-1 rounded font-mono">TENANT_ID</code>,
+            <code className="text-blue-850 bg-blue-100 px-1 rounded font-mono">SP_CLIENT_ID</code>,
+            <code className="text-blue-850 bg-blue-100 px-1 rounded font-mono">SP_CLIENT_SECRET</code>).
             You only need to fill credentials if this list uses a different Azure app registration.
           </p>
         </div>
       </div>
 
       {/* Config list */}
-      <div className="glass-card overflow-hidden">
+      <div className="glass-card overflow-hidden bg-white border border-gray-200 shadow-sm">
         {loading ? (
           <div className="space-y-3 p-6">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />
+              <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : configs.length === 0 ? (
           <div className="text-center py-20">
-            <Database className="w-16 h-16 mx-auto text-gray-700 mb-4" />
-            <p className="text-white font-semibold text-lg">No SharePoint lists configured</p>
+            <Database className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-900 font-bold text-lg">No SharePoint lists configured</p>
             <p className="text-gray-500 text-sm mt-2 mb-6">
               Add your first list to start syncing contacts from SharePoint.
             </p>
@@ -454,9 +454,9 @@ export default function SharePointSettings() {
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-gray-100">
             {/* Table header */}
-            <div className="grid grid-cols-[2fr_3fr_auto_auto_auto] gap-4 px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="grid grid-cols-[2fr_3fr_auto_auto_auto] gap-4 px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50 border-b border-gray-200">
               <span>Name</span>
               <span>Site / List</span>
               <span>Status</span>
@@ -467,27 +467,27 @@ export default function SharePointSettings() {
             {configs.map((cfg) => {
               const result = testResults[cfg.id];
               return (
-                <div key={cfg.id} className={`grid grid-cols-[2fr_3fr_auto_auto_auto] gap-4 items-center px-6 py-4 hover:bg-white/5 transition-colors ${!cfg.isActive ? 'opacity-50' : ''}`}>
+                <div key={cfg.id} className={`grid grid-cols-[2fr_3fr_auto_auto_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50/30 transition-colors ${!cfg.isActive ? 'opacity-50' : ''}`}>
                   {/* Name */}
                   <div>
-                    <p className="text-sm font-semibold text-white">{cfg.name}</p>
-                    <p className="text-xs text-gray-500">Order: {cfg.sortOrder}</p>
+                    <p className="text-sm font-bold text-gray-900">{cfg.name}</p>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">Order: {cfg.sortOrder}</p>
                   </div>
 
                   {/* IDs */}
                   <div className="space-y-0.5 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <Link className="w-3 h-3 text-gray-500 shrink-0" />
-                      <p className="text-xs text-gray-400 font-mono truncate" title={cfg.siteId}>{cfg.siteId}</p>
+                      <Link className="w-3 h-3 text-gray-400 shrink-0" />
+                      <p className="text-xs text-gray-500 font-mono truncate" title={cfg.siteId}>{cfg.siteId}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <Database className="w-3 h-3 text-gray-500 shrink-0" />
-                      <p className="text-xs text-gray-400 font-mono truncate" title={cfg.listId}>{cfg.listId}</p>
+                      <Database className="w-3 h-3 text-gray-400 shrink-0" />
+                      <p className="text-xs text-gray-500 font-mono truncate" title={cfg.listId}>{cfg.listId}</p>
                     </div>
                     {cfg.tenantId && (
                       <div className="flex items-center gap-1.5">
-                        <Shield className="w-3 h-3 text-brand-500/60 shrink-0" />
-                        <p className="text-xs text-brand-400/60 font-mono truncate">Custom credentials</p>
+                        <Shield className="w-3 h-3 text-brand-600/70 shrink-0" />
+                        <p className="text-xs text-brand-600 font-mono truncate">Custom credentials</p>
                       </div>
                     )}
                   </div>
@@ -497,10 +497,10 @@ export default function SharePointSettings() {
                     <button
                       onClick={() => handleToggleActive(cfg)}
                       disabled={togglingId === cfg.id}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
                         cfg.isActive
-                          ? 'bg-emerald-500/15 text-emerald-400 hover:bg-red-500/15 hover:text-red-400'
-                          : 'bg-gray-500/15 text-gray-400 hover:bg-emerald-500/15 hover:text-emerald-400'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-750 hover:border-red-200'
+                          : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-emerald-50 hover:text-emerald-750 hover:border-emerald-200'
                       }`}
                     >
                       {cfg.isActive
@@ -512,7 +512,7 @@ export default function SharePointSettings() {
                   {/* Test result */}
                   <div>
                     {result ? (
-                      <div className={`flex items-center gap-1 text-xs ${result.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <div className={`flex items-center gap-1 text-xs font-semibold ${result.success ? 'text-emerald-600' : 'text-red-600'}`}>
                         {result.success ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
                         <span className="hidden sm:inline">{result.success ? 'OK' : 'Failed'}</span>
                       </div>
@@ -521,7 +521,7 @@ export default function SharePointSettings() {
                         id={`test-btn-${cfg.id}`}
                         onClick={() => handleTest(cfg.id)}
                         disabled={testingId === cfg.id}
-                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-400 transition"
+                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-600 transition font-semibold"
                       >
                         {testingId === cfg.id
                           ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -532,11 +532,11 @@ export default function SharePointSettings() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 justify-end">
+                  <div className="flex items-center gap-1.5 justify-end">
                     <button
                       id={`edit-btn-${cfg.id}`}
                       onClick={() => { setEditingConfig(cfg); setModalMode('edit'); }}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
+                      className="p-1.5 rounded-lg bg-white border border-gray-300 text-gray-500 hover:text-brand-600 hover:bg-gray-100 transition shadow-sm"
                       title="Edit"
                     >
                       <Edit2 className="w-4 h-4" />
@@ -545,7 +545,7 @@ export default function SharePointSettings() {
                       id={`delete-btn-${cfg.id}`}
                       onClick={() => handleDelete(cfg.id)}
                       disabled={deletingId === cfg.id}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition disabled:opacity-50"
+                      className="p-1.5 rounded-lg bg-white border border-gray-300 text-gray-550 text-gray-500 hover:text-red-600 hover:bg-red-50 transition disabled:opacity-50 shadow-sm"
                       title="Delete"
                     >
                       {deletingId === cfg.id
@@ -568,13 +568,13 @@ export default function SharePointSettings() {
             .map(([id, result]) => {
               const cfg = configs.find((c) => c.id === id);
               return (
-                <div key={id} className="flex items-start gap-3 p-4 rounded-xl border border-red-500/20 bg-red-500/10">
-                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <div key={id} className="flex items-start gap-3 p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 shadow-sm">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-red-400">{cfg?.name || id}</p>
-                    <p className="text-xs text-red-400/70 mt-0.5">{result.message}</p>
+                    <p className="text-sm font-semibold text-red-900">{cfg?.name || id}</p>
+                    <p className="text-xs text-red-750 mt-0.5">{result.message}</p>
                   </div>
-                  <button onClick={() => setTestResults((r) => { const n = { ...r }; delete n[id]; return n; })} className="ml-auto text-red-400/60 hover:text-red-300 transition">
+                  <button onClick={() => setTestResults((r) => { const n = { ...r }; delete n[id]; return n; })} className="ml-auto text-red-400 hover:text-red-600 transition">
                     <X className="w-4 h-4" />
                   </button>
                 </div>

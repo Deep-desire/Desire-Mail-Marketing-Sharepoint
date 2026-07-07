@@ -12,32 +12,36 @@ interface Props {
 
 const colorMap = {
   indigo: {
-    bg: 'from-brand-600/20 to-brand-800/20',
-    border: 'border-brand-500/20',
-    borderActive: 'border-brand-400 ring-2 ring-brand-500/20',
-    icon: 'bg-brand-500/20 text-brand-400',
-    glow: 'shadow-brand-500/5',
+    bg: 'bg-white',
+    border: 'border-gray-200',
+    borderActive: 'border-brand-500 ring-2 ring-brand-500/10',
+    hover: 'hover:border-brand-500 hover:ring-2 hover:ring-brand-500/10',
+    icon: 'bg-brand-50 text-brand-600',
+    glow: 'shadow-sm',
   },
   emerald: {
-    bg: 'from-emerald-600/20 to-emerald-800/20',
-    border: 'border-emerald-500/20',
-    borderActive: 'border-emerald-400 ring-2 ring-emerald-500/20',
-    icon: 'bg-emerald-500/20 text-emerald-400',
-    glow: 'shadow-emerald-500/5',
+    bg: 'bg-white',
+    border: 'border-gray-200',
+    borderActive: 'border-emerald-500 ring-2 ring-emerald-500/10',
+    hover: 'hover:border-emerald-500 hover:ring-2 hover:ring-emerald-500/10',
+    icon: 'bg-emerald-50 text-emerald-600',
+    glow: 'shadow-sm',
   },
   amber: {
-    bg: 'from-amber-600/20 to-amber-800/20',
-    border: 'border-amber-500/20',
-    borderActive: 'border-amber-400 ring-2 ring-amber-500/20',
-    icon: 'bg-amber-500/20 text-amber-400',
-    glow: 'shadow-amber-500/5',
+    bg: 'bg-white',
+    border: 'border-gray-200',
+    borderActive: 'border-amber-500 ring-2 ring-amber-500/10',
+    hover: 'hover:border-amber-500 hover:ring-2 hover:ring-amber-500/10',
+    icon: 'bg-amber-50 text-amber-600',
+    glow: 'shadow-sm',
   },
   rose: {
-    bg: 'from-rose-600/20 to-rose-800/20',
-    border: 'border-rose-500/20',
-    borderActive: 'border-rose-400 ring-2 ring-rose-500/20',
-    icon: 'bg-rose-500/20 text-rose-400',
-    glow: 'shadow-rose-500/5',
+    bg: 'bg-white',
+    border: 'border-gray-200',
+    borderActive: 'border-rose-500 ring-2 ring-rose-500/10',
+    hover: 'hover:border-rose-500 hover:ring-2 hover:ring-rose-500/10',
+    icon: 'bg-rose-50 text-rose-600',
+    glow: 'shadow-sm',
   },
 };
 
@@ -47,19 +51,19 @@ export default function StatsCard({ title, value, icon, color, subtitle, onClick
   return (
     <div
       onClick={onClick}
-      className={`glass-card bg-gradient-to-br ${c.bg} border ${
-        isActive ? c.borderActive : c.border
-      } p-6 shadow-lg ${c.glow} 
-                  transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${
+      className={`glass-card ${c.bg} border ${
+        isActive ? c.borderActive : `${c.border} ${c.hover}`
+      } p-6 ${c.glow} 
+                  transition-all duration-200 hover:shadow-md ${
                     onClick ? 'cursor-pointer select-none active:scale-[0.98]' : ''
                   }`}
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-400">{title}</p>
-          <p className="text-3xl font-bold text-white mt-2">{value.toLocaleString()}</p>
+          <p className="text-sm font-medium text-gray-500">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{value.toLocaleString()}</p>
           {subtitle && (
-            <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+            <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
           )}
         </div>
         <div className={`p-3 rounded-xl ${c.icon}`}>{icon}</div>

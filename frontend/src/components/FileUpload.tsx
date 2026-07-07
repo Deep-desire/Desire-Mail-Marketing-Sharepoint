@@ -59,8 +59,8 @@ export default function FileUpload({ onFileSelect, isUploading }: Props) {
         className={`relative flex flex-col items-center justify-center w-full h-52 
                      rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-300
                      ${isDragging
-                       ? 'border-brand-500 bg-brand-500/10 scale-[1.02]'
-                       : 'border-white/10 bg-white/5 hover:border-brand-500/50 hover:bg-white/10'
+                       ? 'border-brand-500 bg-brand-50/50 scale-[1.01]'
+                       : 'border-gray-300 bg-white hover:border-brand-400 hover:bg-gray-50/50'
                      }
                      ${isUploading ? 'pointer-events-none opacity-60' : ''}
                    `}
@@ -78,26 +78,26 @@ export default function FileUpload({ onFileSelect, isUploading }: Props) {
 
         {isUploading ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-            <p className="text-sm text-gray-400">Uploading & processing...</p>
+            <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+            <p className="text-sm text-gray-500">Uploading & processing...</p>
           </div>
         ) : selectedFile ? (
           <div className="flex flex-col items-center gap-3">
-            <FileSpreadsheet className="w-12 h-12 text-emerald-400" />
-            <p className="text-sm text-white font-medium">{selectedFile.name}</p>
+            <FileSpreadsheet className="w-12 h-12 text-emerald-600 animate-bounce" />
+            <p className="text-sm text-gray-900 font-semibold">{selectedFile.name}</p>
             <p className="text-xs text-gray-500">
               {(selectedFile.size / 1024).toFixed(1)} KB
             </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            <Upload className="w-12 h-12 text-gray-500" />
+            <Upload className="w-12 h-12 text-gray-400" />
             <div className="text-center">
-              <p className="text-sm text-gray-400">
-                <span className="text-brand-400 font-medium">Click to upload</span>{' '}
+              <p className="text-sm text-gray-600">
+                <span className="text-brand-600 font-semibold">Click to upload</span>{' '}
                 or drag and drop
               </p>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Only .xlsx files • Max 10MB
               </p>
             </div>
@@ -106,31 +106,31 @@ export default function FileUpload({ onFileSelect, isUploading }: Props) {
       </label>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2 text-red-700 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
       )}
 
       {/* Required format info */}
-      <div className="glass-card p-4">
-        <p className="text-sm font-medium text-gray-300 mb-2">Required Excel Format:</p>
+      <div className="glass-card p-5 bg-white border border-gray-250 border-gray-200">
+        <p className="text-sm font-semibold text-gray-700 mb-2">Required Excel Format:</p>
         <div className="overflow-x-auto">
-          <table className="text-xs text-gray-400">
+          <table className="text-xs text-gray-600 w-full max-w-xs">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="py-2 px-4 text-left font-semibold text-brand-400">name</th>
-                <th className="py-2 px-4 text-left font-semibold text-brand-400">email</th>
+              <tr className="border-b border-gray-200">
+                <th className="py-2 px-4 text-left font-bold text-brand-600">name</th>
+                <th className="py-2 px-4 text-left font-bold text-brand-600">email</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
+              <tr className="border-b border-gray-100">
                 <td className="py-1.5 px-4">John Doe</td>
-                <td className="py-1.5 px-4">john@example.com</td>
+                <td className="py-1.5 px-4 text-gray-500">john@example.com</td>
               </tr>
               <tr>
                 <td className="py-1.5 px-4">Jane Smith</td>
-                <td className="py-1.5 px-4">jane@example.com</td>
+                <td className="py-1.5 px-4 text-gray-500">jane@example.com</td>
               </tr>
             </tbody>
           </table>
