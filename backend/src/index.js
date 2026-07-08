@@ -229,8 +229,8 @@ async function reconcileContacts(allContacts, syncMode, configId = null, templat
     const recipientMap = new Map();
     for (const r of latestRecipients) {
       recipientMap.set(r.email.toLowerCase(), {
-        status:       r.status,
-        sentAt:       r.sentAt,
+        status: r.status,
+        sentAt: r.sentAt,
         spModifiedAt: r.spModifiedAt,   // stored snapshot from last campaign
       });
     }
@@ -254,7 +254,7 @@ async function reconcileContacts(allContacts, syncMode, configId = null, templat
       //    the SP item's Modified timestamp just seconds after the send, making
       //    modifiedAt > sentAt always true and poisoning incremental forever.
       if (lastSend.spModifiedAt && c.modifiedAt) {
-        const prevSnapshot  = new Date(lastSend.spModifiedAt);
+        const prevSnapshot = new Date(lastSend.spModifiedAt);
         const currentSPTime = new Date(c.modifiedAt);
         if (currentSPTime > prevSnapshot) {
           return true; // Real data change in SharePoint since last campaign inclusion
@@ -275,22 +275,22 @@ async function reconcileContacts(allContacts, syncMode, configId = null, templat
 
     if (!email || !emailRegex.test(email)) {
       invalidCount++;
-      contacts.push({ name, email, status: 'invalid', reason: 'Invalid email format', itemId: c.itemId, modifiedAt: c.modifiedAt || null });
+      contacts.push({ name, email, status: 'invalid', reason: 'Invalid email format', itemId: c.itemId, modifiedAt: c.modifiedAt || null, rawFields: c.rawFields });
       continue;
     }
     if (seenEmails.has(email)) {
       duplicateCount++;
-      contacts.push({ name, email, status: 'duplicate', reason: 'Duplicate email in list', itemId: c.itemId, modifiedAt: c.modifiedAt || null });
+      contacts.push({ name, email, status: 'duplicate', reason: 'Duplicate email in list', itemId: c.itemId, modifiedAt: c.modifiedAt || null, rawFields: c.rawFields });
       continue;
     }
     seenEmails.add(email);
     if (unsubSet.has(email)) {
       unsubscribedCount++;
-      contacts.push({ name, email, status: 'unsubscribed', reason: 'Email is unsubscribed', itemId: c.itemId, modifiedAt: c.modifiedAt || null });
+      contacts.push({ name, email, status: 'unsubscribed', reason: 'Email is unsubscribed', itemId: c.itemId, modifiedAt: c.modifiedAt || null, rawFields: c.rawFields });
       continue;
     }
     validCount++;
-    contacts.push({ name, email, status: 'valid', reason: null, itemId: c.itemId, modifiedAt: c.modifiedAt || null });
+    contacts.push({ name, email, status: 'valid', reason: null, itemId: c.itemId, modifiedAt: c.modifiedAt || null, rawFields: c.rawFields });
   }
 
   return {
@@ -361,13 +361,13 @@ apiRouter.put('/sharepoint/configs/:id', catchAsync(async (req, res) => {
   if (!existing) return res.status(404).json({ message: 'SharePoint config not found' });
 
   const updateData = {};
-  if (name       !== undefined) updateData.name         = name.trim();
-  if (siteId     !== undefined) updateData.siteId        = siteId.trim();
-  if (listId     !== undefined) updateData.listId        = listId.trim();
-  if (tenantId   !== undefined) updateData.tenantId      = tenantId?.trim() || null;
-  if (clientId   !== undefined) updateData.clientId      = clientId?.trim() || null;
-  if (isActive   !== undefined) updateData.isActive      = Boolean(isActive);
-  if (sortOrder  !== undefined) updateData.sortOrder     = Number(sortOrder);
+  if (name !== undefined) updateData.name = name.trim();
+  if (siteId !== undefined) updateData.siteId = siteId.trim();
+  if (listId !== undefined) updateData.listId = listId.trim();
+  if (tenantId !== undefined) updateData.tenantId = tenantId?.trim() || null;
+  if (clientId !== undefined) updateData.clientId = clientId?.trim() || null;
+  if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+  if (sortOrder !== undefined) updateData.sortOrder = Number(sortOrder);
   // Only update clientSecret if a real value is provided (not the masked '***')
   if (clientSecret !== undefined && clientSecret !== '***') {
     updateData.clientSecret = clientSecret?.trim() || null;
@@ -494,11 +494,11 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
         unsubscribed: 'skipped',
       };
       return {
-        name:         c.name,
-        email:        c.email,
-        status:       statusMap[c.status] || 'pending',
-        error:        c.reason,
-        spItemId:     c.itemId || null,
+        name: c.name,
+        email: c.email,
+        status: statusMap[c.status] || 'pending',
+        error: c.reason,
+        spItemId: c.itemId || null,
         // Store the SP modifiedAt snapshot so incremental sync can compare against it
         // on the NEXT run, without being confused by our own EmailSent write-back.
         spModifiedAt: c.modifiedAt ? new Date(c.modifiedAt) : null,

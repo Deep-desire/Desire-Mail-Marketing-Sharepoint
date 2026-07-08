@@ -45,14 +45,14 @@ function ConfigModal({
   const [form, setForm] = useState<FormState>(() =>
     initial
       ? {
-          name: initial.name,
-          siteId: initial.siteId,
-          listId: initial.listId,
-          tenantId: initial.tenantId || '',
-          clientId: initial.clientId || '',
-          clientSecret: '', // never pre-fill the secret
-          sortOrder: initial.sortOrder,
-        }
+        name: initial.name,
+        siteId: initial.siteId,
+        listId: initial.listId,
+        tenantId: initial.tenantId || '',
+        clientId: initial.clientId || '',
+        clientSecret: '', // never pre-fill the secret
+        sortOrder: initial.sortOrder,
+      }
       : emptyForm
   );
   const [saving, setSaving] = useState(false);
@@ -259,11 +259,10 @@ function ConfigModal({
 
           {/* Test result banner */}
           {testResult && (
-            <div className={`flex items-start gap-3 p-4 rounded-xl border ${
-              testResult.success
+            <div className={`flex items-start gap-3 p-4 rounded-xl border ${testResult.success
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
+              }`}>
               {testResult.success
                 ? <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 : <XCircle className="w-5 h-5 shrink-0 mt-0.5" />}
@@ -497,11 +496,10 @@ export default function SharePointSettings() {
                     <button
                       onClick={() => handleToggleActive(cfg)}
                       disabled={togglingId === cfg.id}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                        cfg.isActive
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${cfg.isActive
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-750 hover:border-red-200'
                           : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-emerald-50 hover:text-emerald-750 hover:border-emerald-200'
-                      }`}
+                        }`}
                     >
                       {cfg.isActive
                         ? <><CheckCircle className="w-3.5 h-3.5" /> Active</>

@@ -193,10 +193,10 @@ export default function UnsubscribedSettings() {
                   <thead>
                     <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50">
                       <th className="px-4 py-3 w-12">#</th>
-                      <th className="px-4 py-3 w-[45%]">Email Address</th>
+                      <th className="px-4 py-3 w-[40%]">Email Address</th>
                       <th className="px-4 py-3 w-[25%]">Unsubscribe Token</th>
                       <th className="px-4 py-3 w-[20%]">Date Added</th>
-                      <th className="px-4 py-3 w-16 text-right">Actions</th>
+                      <th className="px-4 py-3 w-28 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-sm text-gray-700">

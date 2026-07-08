@@ -4,12 +4,32 @@ import {
   RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
   CheckCircle, AlertCircle, XCircle, MinusCircle,
   Users, Mail, Send, History, Trash2, X, AlertTriangle,
-  Calendar, Layers, Search,
+  Calendar, Layers, Search, SlidersHorizontal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/upload.api';
 import { Template, Campaign, SPContact, SharePointConfig } from '../types';
 import StatusBadge from '../components/StatusBadge';
+
+// Filter out internal system columns from SharePoint lists by default
+const SYSTEM_COLUMNS = new Set([
+  'id', 'ContentType', 'Attachments', 'Modified', 'Created', 
+  'AuthorLookupId', 'EditorLookupId', 'OData__ColorTag',
+  'odata.etag', 'odata.type', 'ComplianceAssetId',
+  'Author', 'Editor',
+  // Additional internal SharePoint system metadata columns
+  '@odata.etag', '_UIVersionString', '_HasCopyDestinations', '_CopySource',
+  'Edit', 'LinkFilename', 'LinkFilenameNoMenu', 'LinkTitle', 'LinkTitleNoMenu',
+  'ItemChildCount', 'FolderChildCount', '_ComplianceFlags', '_ComplianceTag',
+  '_ComplianceTagWrittenTime', '_ComplianceTagUserId', 'AppEditorLookupId',
+  'AppAuthorLookupId', 'DocIcon', 'HTML_x0020_File_x0020_Type', 'FSObjType',
+  'Created_x0020_Date', 'Last_x0020_Modified', 'LookupId', 'FileRef',
+  'FileDirRef', 'FileLeafRef', 'UniqueId', 'ProgId', 'ScopeId', 'Order',
+  'GUID', 'MetaInfo', 'MediaServiceImageTags', 'FirstUniqueAncestorSecurable'
+]);
+
+const NAME_CANDIDATES = new Set(['name', 'title', 'contactname', 'fullname', 'firstname']);
+const EMAIL_CANDIDATES = new Set(['email', 'emailaddress', 'workemail', 'email_x0020_address', 'work_x0020_email']);
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -66,6 +86,13 @@ export default function SharePointContacts() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [iframeHeight, setIframeHeight] = useState('400px');
   const [senderEmail, setSenderEmail] = useState('marketing@vuf.org');
+
+  // ── Dynamic Column states ──
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
+  const [mappedNameField, setMappedNameField] = useState<string>('');
+  const [mappedEmailField, setMappedEmailField] = useState<string>('');
 
   const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = e.currentTarget;
@@ -124,6 +151,44 @@ export default function SharePointContacts() {
     }
   };
 
+  const toggleColumn = (colName: string) => {
+    if (selectedColumns.includes(colName)) {
+      setSelectedColumns(selectedColumns.filter((c) => c !== colName));
+    } else {
+      setSelectedColumns([...selectedColumns, colName]);
+    }
+  };
+
+  const applyFieldMapping = (
+    contactsList: SPContact[],
+    nameField: string,
+    emailField: string,
+    unsubSet: Set<string>
+  ) => {
+    const remapped = contactsList.map(c => ({
+      ...c,
+      name: c.rawFields?.[nameField] ? String(c.rawFields[nameField]).trim() : '',
+      email: c.rawFields?.[emailField] ? String(c.rawFields[emailField]).trim().toLowerCase() : '',
+    }));
+    return recalculateContactsList(remapped, unsubSet);
+  };
+
+  const handleNameMappingChange = (nameField: string) => {
+    setMappedNameField(nameField);
+    if (!nameField || !mappedEmailField) return;
+    const result = applyFieldMapping(contacts, nameField, mappedEmailField, unsubscribedEmails);
+    setContacts(result.contacts);
+    setStats(result.stats);
+  };
+
+  const handleEmailMappingChange = (emailField: string) => {
+    setMappedEmailField(emailField);
+    if (!mappedNameField || !emailField) return;
+    const result = applyFieldMapping(contacts, mappedNameField, emailField, unsubscribedEmails);
+    setContacts(result.contacts);
+    setStats(result.stats);
+  };
+
   // ── Sync from SharePoint ──
   const handleSync = useCallback(async () => {
     if (!selectedConfigId) {
@@ -138,22 +203,58 @@ export default function SharePointContacts() {
     setContacts([]);
     try {
       const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode, selectedTemplate);
-      setContacts(res.data.contacts);
-      setStats({
-        total: res.data.total,
-        validCount: res.data.validCount,
-        invalidCount: res.data.invalidCount,
-        duplicateCount: res.data.duplicateCount,
-        unsubscribedCount: res.data.unsubscribedCount,
-      });
+      const syncedContacts = res.data.contacts || [];
 
       // Track unsubscribed email list locally for inline edits validation
       const unsubs = new Set(
-        res.data.contacts
+        syncedContacts
           .filter((c: SPContact) => c.status === 'unsubscribed')
           .map((c: SPContact) => c.email.toLowerCase())
       );
       setUnsubscribedEmails(unsubs);
+
+      // Extract unique columns from rawFields, skipping system columns
+      const cols = new Set<string>();
+      syncedContacts.forEach((c) => {
+        if (c.rawFields) {
+          Object.keys(c.rawFields).forEach((key) => {
+            if (!SYSTEM_COLUMNS.has(key)) {
+              cols.add(key);
+            }
+          });
+        }
+      });
+      const allCols = Array.from(cols);
+      setAvailableColumns(allCols);
+      setSelectedColumns(allCols);
+
+      // Auto-detect Name and Email fields from available columns
+      let nameFieldDetected = '';
+      let emailFieldDetected = '';
+      for (const col of allCols) {
+        const lowerCol = col.toLowerCase();
+        if (!nameFieldDetected && NAME_CANDIDATES.has(lowerCol)) {
+          nameFieldDetected = col;
+        }
+        if (!emailFieldDetected && EMAIL_CANDIDATES.has(lowerCol)) {
+          emailFieldDetected = col;
+        }
+      }
+      // Fallback defaults
+      if (!nameFieldDetected) {
+        nameFieldDetected = allCols.find(c => c.toLowerCase() === 'title' || c.toLowerCase() === 'name') || allCols[0] || '';
+      }
+      if (!emailFieldDetected) {
+        emailFieldDetected = allCols.find(c => c.toLowerCase() === 'email' || c.toLowerCase() === 'emailaddress') || allCols[0] || '';
+      }
+      setMappedNameField(nameFieldDetected);
+      setMappedEmailField(emailFieldDetected);
+
+      // Apply initial mapping and validation
+      const result = applyFieldMapping(syncedContacts, nameFieldDetected, emailFieldDetected, unsubs);
+      setContacts(result.contacts);
+      setStats(result.stats);
+
       setStep(1); // Reset to step 1 on new sync
       const selectedConfig = spConfigs.find((c) => c.id === selectedConfigId);
       toast.success(`Synced ${res.data.total} contacts from "${selectedConfig?.name || 'SharePoint'}" (${syncMode} mode)`);
@@ -209,7 +310,7 @@ export default function SharePointContacts() {
 
   // ── Local Recalculations for Edits & Deletes ──
   const recalculateContactsList = (
-    rawContacts: { name: string; email: string; status?: string; reason?: string | null; itemId?: string }[],
+    rawContacts: SPContact[],
     unsubSet: Set<string>
   ) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -221,22 +322,23 @@ export default function SharePointContacts() {
       const email = c.email.toLowerCase().trim();
       const name = c.name.trim();
       const itemId = c.itemId;
+      const rawFields = c.rawFields;
 
       if (!email || !emailRegex.test(email)) {
         invalidCount++;
-        return { name, email, status: 'invalid', reason: 'Invalid email format', itemId };
+        return { name, email, status: 'invalid', reason: 'Invalid email format', itemId, rawFields };
       }
       if (seenEmails.has(email)) {
         duplicateCount++;
-        return { name, email, status: 'duplicate', reason: 'Duplicate email in list', itemId };
+        return { name, email, status: 'duplicate', reason: 'Duplicate email in list', itemId, rawFields };
       }
       seenEmails.add(email);
       if (unsubSet.has(email)) {
         unsubscribedCount++;
-        return { name, email, status: 'unsubscribed', reason: 'Email is unsubscribed', itemId };
+        return { name, email, status: 'unsubscribed', reason: 'Email is unsubscribed', itemId, rawFields };
       }
       validCount++;
-      return { name, email, status: 'valid', reason: null, itemId };
+      return { name, email, status: 'valid', reason: null, itemId, rawFields };
     });
 
     return {
@@ -264,7 +366,15 @@ export default function SharePointContacts() {
   const saveEdit = (index: number) => {
     const updatedRaw = contacts.map((c, idx) => {
       if (idx === index) {
-        return { ...c, name: editName, email: editEmail };
+        const rf = c.rawFields ? { ...c.rawFields } : undefined;
+        if (rf) {
+          Object.keys(rf).forEach((k) => {
+            const lk = k.toLowerCase();
+            if (NAME_CANDIDATES.has(lk)) rf[k] = editName;
+            if (EMAIL_CANDIDATES.has(lk)) rf[k] = editEmail;
+          });
+        }
+        return { ...c, name: editName, email: editEmail, rawFields: rf };
       }
       return c;
     });
@@ -343,54 +453,55 @@ export default function SharePointContacts() {
       </div>
 
       {step === 1 ? (
-        /* ────────────────── STEP 1: CONTACT SYNC & REVIEW ────────────────── */
         <div className="space-y-6 animate-fade-in">
           {/* Sync controls */}
           <div className="bg-white border border-gray-200 p-5 rounded-2xl shadow-sm relative overflow-hidden">
             {/* Subtle glow background */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-6 flex-1">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4 lg:gap-6 flex-1">
                 {/* SharePoint List selector */}
-                <div className="flex items-center gap-3">
-                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">SharePoint List:</label>
-                  <div className="relative w-44">
-                    <select
-                      id="sp-list-select"
-                      value={selectedConfigId}
-                      onChange={(e) => { setSelectedConfigId(e.target.value); setContacts([]); }}
-                      disabled={loadingConfigs}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
-                    >
-                      {loadingConfigs ? (
-                        <option value="">Loading lists…</option>
-                      ) : spConfigs.length === 0 ? (
-                        <option value="">No lists</option>
-                      ) : (
-                        spConfigs.map((cfg) => (
-                          <option key={cfg.id} value={cfg.id}>{cfg.name}</option>
-                        ))
-                      )}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
-                      <ChevronDown className="w-3.5 h-3.5" />
+                <div className="flex flex-col gap-1.5 flex-1 sm:flex-none">
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">SharePoint List</label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-full sm:w-44">
+                      <select
+                        id="sp-list-select"
+                        value={selectedConfigId}
+                        onChange={(e) => { setSelectedConfigId(e.target.value); setContacts([]); setAvailableColumns([]); setSelectedColumns([]); setMappedNameField(''); setMappedEmailField(''); }}
+                        disabled={loadingConfigs}
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
+                      >
+                        {loadingConfigs ? (
+                          <option value="">Loading lists…</option>
+                        ) : spConfigs.length === 0 ? (
+                          <option value="">No lists</option>
+                        ) : (
+                          spConfigs.map((cfg) => (
+                            <option key={cfg.id} value={cfg.id}>{cfg.name}</option>
+                          ))
+                        )}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </div>
                     </div>
+                    {spConfigs.length === 0 && !loadingConfigs && (
+                      <button
+                        onClick={() => navigate('/settings/sharepoint')}
+                        className="text-xs text-brand-600 hover:text-brand-700 font-semibold underline whitespace-nowrap"
+                      >
+                        + Add
+                      </button>
+                    )}
                   </div>
-                  {spConfigs.length === 0 && !loadingConfigs && (
-                    <button
-                      onClick={() => navigate('/settings/sharepoint')}
-                      className="text-xs text-brand-600 hover:text-brand-700 font-semibold underline whitespace-nowrap"
-                    >
-                      + Add
-                    </button>
-                  )}
                 </div>
 
                 {/* Email Template Selector */}
-                <div className="flex items-center gap-3">
-                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Email Template:</label>
-                  <div className="relative w-44">
+                <div className="flex flex-col gap-1.5 flex-1 sm:flex-none">
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Email Template</label>
+                  <div className="relative w-full sm:w-44">
                     <select
                       id="sp-template-select"
                       value={selectedTemplate}
@@ -409,9 +520,9 @@ export default function SharePointContacts() {
                 </div>
 
                 {/* Sync Mode selector */}
-                <div className="flex items-center gap-3">
-                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Sync Mode:</label>
-                  <div className="relative w-52">
+                <div className="flex flex-col gap-1.5 flex-1 sm:flex-none">
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Sync Mode</label>
+                  <div className="relative w-full sm:w-56">
                     <select
                       id="sync-mode-select"
                       value={syncMode}
@@ -437,10 +548,50 @@ export default function SharePointContacts() {
                   className="w-full lg:w-auto bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 h-[36px] px-5 rounded-xl shadow-sm active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Syncing…' : 'Sync from SharePoint'}
+                  {syncing ? 'Syncing...' : 'Sync from SharePoint'}
                 </button>
               </div>
             </div>
+
+            {availableColumns.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4 animate-fade-in">
+                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Column Mapping:</div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-gray-400 uppercase">Map Name To</label>
+                  <div className="relative w-44">
+                    <select
+                      value={mappedNameField}
+                      onChange={(e) => handleNameMappingChange(e.target.value)}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-2.5 py-1 pr-7 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[32px] shadow-sm"
+                    >
+                      {availableColumns.map(col => (
+                        <option key={col} value={col}>{col.replace(/_x0020_/g, ' ')}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+                      <ChevronDown className="w-3 h-3" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-gray-400 uppercase">Map Email To</label>
+                  <div className="relative w-44">
+                    <select
+                      value={mappedEmailField}
+                      onChange={(e) => handleEmailMappingChange(e.target.value)}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-2.5 py-1 pr-7 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[32px] shadow-sm"
+                    >
+                      {availableColumns.map(col => (
+                        <option key={col} value={col}>{col.replace(/_x0020_/g, ' ')}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+                      <ChevronDown className="w-3 h-3" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stats row */}
@@ -498,6 +649,73 @@ export default function SharePointContacts() {
                       <option value="unsubscribed">Unsubscribed ({stats.unsubscribedCount})</option>
                     </select>
                   </div>
+
+                  {/* Column Picker */}
+                  {availableColumns.length > 0 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
+                        className="flex items-center gap-1.5 bg-white border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 text-xs text-gray-700 font-semibold shadow-sm transition-all focus:outline-none h-[28px] select-none"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        Columns
+                        {selectedColumns.length !== availableColumns.length && (
+                          <span className="bg-brand-100 text-brand-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                            {selectedColumns.length}/{availableColumns.length}
+                          </span>
+                        )}
+                      </button>
+
+                      {isColumnDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-10" 
+                            onClick={() => setIsColumnDropdownOpen(false)} 
+                          />
+                          <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-xl z-20 p-3 max-h-72 overflow-y-auto space-y-2 animate-scale-in">
+                            <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-1">
+                              <span className="text-xs font-bold text-gray-700">Show Columns</span>
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => setSelectedColumns(availableColumns)}
+                                  className="text-[10px] text-brand-600 hover:text-brand-700 font-bold hover:underline"
+                                >
+                                  All
+                                </button>
+                                <button 
+                                  onClick={() => setSelectedColumns([])}
+                                  className="text-[10px] text-gray-500 hover:text-gray-600 font-bold hover:underline"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              {availableColumns.map((colName) => {
+                                const isChecked = selectedColumns.includes(colName);
+                                return (
+                                  <label 
+                                    key={colName} 
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-xs text-gray-700 select-none"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => toggleColumn(colName)}
+                                      className="rounded text-brand-600 focus:ring-brand-500 w-3.5 h-3.5 cursor-pointer border-gray-300"
+                                    />
+                                    <span className="truncate" title={colName}>
+                                      {colName.replace(/_x0020_/g, ' ')}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -520,10 +738,36 @@ export default function SharePointContacts() {
                   <table className="w-full table-fixed min-w-[700px]">
                     <thead>
                       <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50">
-                        <th className="px-4 py-3 w-16">#</th>
-                        <th className="px-4 py-3 w-[25%]">Name</th>
-                        <th className="px-4 py-3 w-[40%]">Email</th>
-                        <th className="px-4 py-3 w-[20%]">Status</th>
+                        <th className="px-4 py-3 w-14">#</th>
+                        {selectedColumns.map((colName) => {
+                          let widthClass = "w-48";
+                          const isNameField = colName === mappedNameField;
+                          const isEmailField = colName === mappedEmailField;
+
+                          if (isNameField) {
+                            widthClass = "w-48";
+                          } else if (isEmailField) {
+                            widthClass = "w-60";
+                          }
+                          return (
+                            <th key={colName} className={`px-4 py-3 ${widthClass} uppercase truncate`} title={colName.replace(/_x0020_/g, ' ')}>
+                              <div className="flex items-center gap-1.5">
+                                <span>{colName.replace(/_x0020_/g, ' ')}</span>
+                                {isNameField && (
+                                  <span className="bg-brand-50 text-brand-600 text-[9px] px-1.5 py-0.5 rounded-md font-bold lowercase first-letter:uppercase">
+                                    Name
+                                  </span>
+                                )}
+                                {isEmailField && (
+                                  <span className="bg-emerald-50 text-emerald-600 text-[9px] px-1.5 py-0.5 rounded-md font-bold lowercase first-letter:uppercase">
+                                    Email
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                          );
+                        })}
+                        <th className="px-4 py-3 w-32">Status</th>
                         <th className="px-4 py-3 w-28 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -535,30 +779,59 @@ export default function SharePointContacts() {
                         return (
                           <tr key={idx} className="hover:bg-gray-50/40 transition-colors group">
                             <td className="px-4 py-3 text-gray-400 text-xs">{actualIndex + 1}</td>
-                            <td className="px-4 py-3 font-medium text-gray-900 truncate" title={c.name}>
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
-                                />
-                              ) : (
-                                c.name || '—'
-                              )}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-xs truncate" title={c.email}>
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editEmail}
-                                  onChange={(e) => setEditEmail(e.target.value)}
-                                  className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
-                                />
-                              ) : (
-                                <span className={c.status === 'invalid' ? 'text-red-655 text-red-600 font-bold' : 'text-gray-500'}>{c.email}</span>
-                              )}
-                            </td>
+                            {selectedColumns.map((colName) => {
+                              const isNameField = colName === mappedNameField;
+                              const isEmailField = colName === mappedEmailField;
+
+                              if (isNameField) {
+                                return (
+                                  <td key={colName} className="px-4 py-3 font-medium text-gray-900 truncate" title={c.name}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
+                                      />
+                                    ) : (
+                                      c.name || '—'
+                                    )}
+                                  </td>
+                                );
+                              }
+
+                              if (isEmailField) {
+                                return (
+                                  <td key={colName} className="px-4 py-3 font-mono text-xs truncate" title={c.email}>
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={editEmail}
+                                        onChange={(e) => setEditEmail(e.target.value)}
+                                        className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
+                                      />
+                                    ) : (
+                                      <span className={c.status === 'invalid' ? 'text-red-600 font-bold' : 'text-gray-500'}>{c.email}</span>
+                                    )}
+                                  </td>
+                                );
+                              }
+
+                              const val = c.rawFields?.[colName];
+                              let displayVal = '—';
+                              if (val !== undefined && val !== null) {
+                                if (typeof val === 'object') {
+                                  displayVal = JSON.stringify(val);
+                                } else {
+                                  displayVal = String(val);
+                                }
+                              }
+                              return (
+                                <td key={colName} className="px-4 py-3 text-xs text-gray-500 truncate" title={displayVal}>
+                                  {displayVal}
+                                </td>
+                              );
+                            })}
                             <td className="px-4 py-3">
                               <span className="flex items-center gap-1.5">
                                 {statusIcon(c.status)}

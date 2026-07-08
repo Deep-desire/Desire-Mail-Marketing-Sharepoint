@@ -17,12 +17,12 @@ const _tokenCache = new Map();
  */
 function resolveCredentials(config) {
   return {
-    tenantId:     config.tenantId     || process.env.TENANT_ID,
-    clientId:     config.clientId     || process.env.SP_CLIENT_ID,
+    tenantId: config.tenantId || process.env.TENANT_ID,
+    clientId: config.clientId || process.env.SP_CLIENT_ID,
     clientSecret: config.clientSecret || process.env.SP_CLIENT_SECRET,
-    siteId:       config.siteId,
-    listId:       config.listId,
-    name:         config.name,
+    siteId: config.siteId,
+    listId: config.listId,
+    name: config.name,
   };
 }
 
@@ -46,10 +46,10 @@ async function getAccessToken(tenantId, clientId, clientSecret) {
   }
 
   const params = new URLSearchParams({
-    client_id:     clientId,
+    client_id: clientId,
     client_secret: clientSecret,
-    scope:         'https://graph.microsoft.com/.default',
-    grant_type:    'client_credentials',
+    scope: 'https://graph.microsoft.com/.default',
+    grant_type: 'client_credentials',
   });
 
   const res = await axios.post(
@@ -71,10 +71,10 @@ async function getAccessToken(tenantId, clientId, clientSecret) {
  */
 function resolveFieldNames(fields = {}) {
   const keys = Object.keys(fields);
-  const nameCandidates  = ['contactname', 'title', 'fullname', 'name', 'full_x0020_name', 'firstname'];
+  const nameCandidates = ['contactname', 'title', 'fullname', 'name', 'full_x0020_name', 'firstname'];
   const emailCandidates = ['email', 'emailaddress', 'email_x0020_address', 'workemail', 'work_x0020_email'];
-  
-  const nameField  = keys.find((key) => nameCandidates.includes(key.toLowerCase())) || null;
+
+  const nameField = keys.find((key) => nameCandidates.includes(key.toLowerCase())) || null;
   const emailField = keys.find((key) => emailCandidates.includes(key.toLowerCase())) || null;
   return { nameField, emailField };
 }
@@ -109,7 +109,7 @@ async function getSharePointContacts(configId) {
   const token = await getAccessToken(tenantId, clientId, clientSecret);
 
   const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
-  let nextUrl   = `${baseUrl}?expand=fields&$top=999`;
+  let nextUrl = `${baseUrl}?expand=fields&$top=999`;
   const allItems = [];
 
   while (nextUrl) {
@@ -138,10 +138,10 @@ async function getSharePointContacts(configId) {
   const contacts = allItems
     .map((item) => {
       const fields = item.fields || {};
-      const name_v = nameField  ? String(fields[nameField]  || '').trim() : '';
-      const email  = emailField ? String(fields[emailField] || '').trim().toLowerCase() : '';
+      const name_v = nameField ? String(fields[nameField] || '').trim() : '';
+      const email = emailField ? String(fields[emailField] || '').trim().toLowerCase() : '';
       const modifiedAt = item.lastModifiedDateTime || fields.Modified || new Date().toISOString();
-      return { name: name_v, email, modifiedAt, itemId: item.id };
+      return { name: name_v, email, modifiedAt, itemId: item.id, rawFields: fields };
     })
     .filter((c) => c.email);
 
