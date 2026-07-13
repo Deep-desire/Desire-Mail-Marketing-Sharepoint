@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
@@ -1042,16 +1043,7 @@ export default function SharePointContacts() {
                               if (isNameField) {
                                 return (
                                   <td key={colName} className="px-4 py-3 font-medium text-gray-900 truncate" title={c.name}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
-                                      />
-                                    ) : (
-                                      c.name || '—'
-                                    )}
+                                    {c.name || '—'}
                                   </td>
                                 );
                               }
@@ -1059,16 +1051,7 @@ export default function SharePointContacts() {
                               if (isEmailField) {
                                 return (
                                   <td key={colName} className="px-4 py-3 font-mono text-xs truncate" title={c.email}>
-                                    {isEditing ? (
-                                      <input
-                                        type="text"
-                                        value={editEmail}
-                                        onChange={(e) => setEditEmail(e.target.value)}
-                                        className="bg-white border border-gray-300 rounded-lg px-2.5 py-1 text-gray-950 text-xs w-full focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20"
-                                      />
-                                    ) : (
-                                      <span className={c.status === 'invalid' ? 'text-red-600 font-bold' : 'text-gray-500'}>{c.email}</span>
-                                    )}
+                                    <span className={c.status === 'invalid' ? 'text-red-600 font-bold' : 'text-gray-500'}>{c.email}</span>
                                   </td>
                                 );
                               }
@@ -1095,39 +1078,22 @@ export default function SharePointContacts() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              {isEditing ? (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => saveEdit(actualIndex)}
-                                    className="text-xs text-brand-600 hover:text-brand-700 font-semibold px-2.5 py-1 hover:bg-brand-50 rounded-lg border border-brand-200"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={cancelEdit}
-                                    className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1 hover:bg-gray-50 rounded-lg border border-gray-300"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-1">
-                                  <button
-                                    onClick={() => startEdit(actualIndex, c.name, c.email)}
-                                    className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-brand-600 transition-all hover:bg-gray-100"
-                                    title="Edit contact"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => deleteContact(actualIndex)}
-                                    className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-red-600 transition-all hover:bg-gray-100"
-                                    title="Delete contact"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => startEdit(actualIndex, c.name, c.email)}
+                                  className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-brand-600 transition-all hover:bg-gray-100"
+                                  title="Edit contact"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deleteContact(actualIndex)}
+                                  className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-red-600 transition-all hover:bg-gray-100"
+                                  title="Delete contact"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1435,7 +1401,7 @@ export default function SharePointContacts() {
       )}
 
       {/* Preview Template Modal */}
-      {isPreviewModalOpen && selectedTemplateObj && (
+      {isPreviewModalOpen && selectedTemplateObj && createPortal(
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
           <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-gray-200 bg-white flex flex-col max-h-[90vh] shadow-2xl">
             <button
@@ -1535,7 +1501,7 @@ export default function SharePointContacts() {
       )}
 
       {/* Delete Confirm Modal */}
-      {deletingCampaign && (
+      {deletingCampaign && createPortal(
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-200 bg-white shadow-2xl">
             <div className="flex justify-between items-start">
@@ -1564,11 +1530,85 @@ export default function SharePointContacts() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Edit Contact Modal */}
+      {editingIndex !== null && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveEdit(editingIndex);
+            }}
+            className="glass-card max-w-md w-full p-6 space-y-6 relative border border-gray-200 bg-white shadow-2xl rounded-2xl animate-scale-in"
+          >
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition-colors shadow-sm"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div>
+              <h3 className="text-xl font-bold text-gray-955 text-gray-950">Edit Contact Details</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Modify contact information. Validation status will automatically re-evaluate.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 hover:border-gray-400 transition-all text-sm shadow-sm font-medium"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 hover:border-gray-400 transition-all text-sm shadow-sm font-medium"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="btn-secondary w-full text-sm py-2.5"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary w-full text-sm py-2.5 flex items-center justify-center gap-2"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
       )}
 
       {/* Edit Schedule Modal */}
-      {editingCampaign && (
+      {editingCampaign && createPortal(
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="glass-card max-w-md w-full p-6 space-y-4 relative border border-gray-200 bg-white shadow-2xl">
             <button
@@ -1649,7 +1689,8 @@ export default function SharePointContacts() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

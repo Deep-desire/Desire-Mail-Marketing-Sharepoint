@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Loader2,
@@ -30,11 +31,29 @@ export default function CampaignDetails() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const shouldLaunch = searchParams.get('launch') === 'true';
+  const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelingCampaign, setCancelingCampaign] = useState(false);
+  const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
+  const [editScheduledAt, setEditScheduledAt] = useState('');
+  const [editSendImmediately, setEditSendImmediately] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'sent' | 'failed' | 'pending' | 'skipped'>('all');
+
+  // Helper to format date for datetime-local input (YYYY-MM-DDTHH:MM in local time)
+  const getLocalDatetimeString = (dateObj: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+  };
+
+  const getInitialScheduledTime = () => {
+    const d = new Date();
+    d.setHours(d.getHours() + 1);
+    return getLocalDatetimeString(d);
+  };
 
   // ── Recipient detail & edit modals state ──
   const [viewRecipient, setViewRecipient] = useState<Recipient | null>(null);
@@ -229,6 +248,47 @@ export default function CampaignDetails() {
     }
   };
 
+  const handleCancelCampaign = async () => {
+    if (!campaign) return;
+    setCancelingCampaign(true);
+    try {
+      await uploadApi.deleteCampaign(campaign.id);
+      toast.success('Campaign schedule cancelled');
+      setIsCancelModalOpen(false);
+      navigate('/contacts');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to cancel campaign schedule');
+    } finally {
+      setCancelingCampaign(false);
+    }
+  };
+
+  const handleUpdateCampaignSchedule = async () => {
+    if (!campaign) return;
+    if (!editSendImmediately) {
+      if (!editScheduledAt) {
+        toast.error('Please complete the date & time selection (including hour, minute, and AM/PM)');
+        return;
+      }
+      if (new Date(editScheduledAt) <= new Date()) {
+        toast.error('Scheduled date and time must be in the future');
+        return;
+      }
+    }
+
+    try {
+      await uploadApi.updateCampaign(campaign.id, {
+        scheduledAt: editSendImmediately ? null : new Date(editScheduledAt).toISOString(),
+        sendImmediately: editSendImmediately,
+      });
+      toast.success(editSendImmediately ? 'Campaign started successfully! 🎉' : 'Campaign rescheduled successfully!');
+      setIsEditScheduleOpen(false);
+      fetchDetails();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to reschedule campaign');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -270,6 +330,51 @@ export default function CampaignDetails() {
           </span>
         </div>
       </div>
+
+      {/* Campaign Scheduled Banner */}
+      {campaign.status === 'scheduled' && campaign.scheduledAt && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="p-3 bg-purple-100/50 border border-purple-200 rounded-xl shrink-0 shadow-sm text-purple-650 text-purple-600">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-purple-950">Campaign Scheduled</h3>
+              <p className="text-sm text-purple-800 mt-0.5">
+                This email campaign is scheduled to start automatically on{' '}
+                <span className="font-semibold">
+                  {new Date(campaign.scheduledAt).toLocaleDateString()}{' '}
+                  {new Date(campaign.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>.
+              </p>
+              {campaign.template && (
+                <p className="text-xs text-purple-500 mt-1">
+                  Template:{' '}
+                  <span className="font-semibold text-purple-700">{campaign.template.name}</span>
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+            <button
+              onClick={() => {
+                setEditScheduledAt(campaign.scheduledAt ? getLocalDatetimeString(new Date(campaign.scheduledAt)) : getInitialScheduledTime());
+                setEditSendImmediately(false);
+                setIsEditScheduleOpen(true);
+              }}
+              className="flex-1 md:flex-none px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-[0.98]"
+            >
+              Edit Schedule
+            </button>
+            <button
+              onClick={() => setIsCancelModalOpen(true)}
+              className="flex-1 md:flex-none px-4 py-2.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 hover:border-red-300 rounded-xl text-xs font-semibold transition-all shadow-sm active:scale-[0.98]"
+            >
+              Cancel Schedule
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Processing / Sending indicator */}
       {campaign.status === 'processing' && (
@@ -360,7 +465,7 @@ export default function CampaignDetails() {
       </div>
 
       {/* View Email Modal */}
-      {viewRecipient && campaign.template && (
+      {viewRecipient && campaign.template && createPortal(
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 md:p-8 animate-fade-in">
           <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-gray-200 bg-white flex flex-col max-h-[90vh] shadow-2xl">
             <button
@@ -490,11 +595,12 @@ export default function CampaignDetails() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Edit Recipient Modal */}
-      {editRecipient && (
+      {editRecipient && createPortal(
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="glass-card max-w-md w-full p-6 space-y-4 border border-gray-200 bg-white shadow-2xl">
             <div className="flex justify-between items-start">
@@ -547,11 +653,12 @@ export default function CampaignDetails() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirm Modal */}
-      {deletingRecipient && (
+      {deletingRecipient && createPortal(
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-200 bg-white shadow-2xl">
             <div className="flex justify-between items-start">
@@ -578,14 +685,140 @@ export default function CampaignDetails() {
               <button
                 onClick={handleDeleteRecipient}
                 disabled={isDeleting}
-                className="bg-red-650 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+                className="bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all flex items-center gap-1.5 shadow-sm"
               >
                 {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Remove
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Cancel Campaign Schedule Confirmation Modal */}
+      {isCancelModalOpen && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex-center z-50 p-4 animate-fade-in flex items-center justify-center">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-200 bg-white shadow-2xl rounded-2xl">
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                Cancel Campaign Schedule?
+              </h3>
+              <button onClick={() => setIsCancelModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500">
+              Are you sure you want to cancel the schedule for <strong className="text-gray-900 font-semibold">"{campaign.name}"</strong>?
+              This will delete the campaign and all its recipient records. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setIsCancelModalOpen(false)}
+                disabled={cancelingCampaign}
+                className="btn-secondary text-xs px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCancelCampaign}
+                disabled={cancelingCampaign}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                {cancelingCampaign && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Cancel Schedule
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Edit Schedule Modal */}
+      {isEditScheduleOpen && campaign && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 relative border border-gray-200 bg-white shadow-2xl rounded-2xl">
+            <button
+              onClick={() => setIsEditScheduleOpen(false)}
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500 shadow-sm"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-brand-600" />
+              Reschedule Campaign
+            </h3>
+            <p className="text-xs text-gray-500">
+              Update details for scheduled campaign: <span className="font-semibold text-gray-800">{campaign.name}</span>
+            </p>
+
+            <div className="space-y-4 pt-2">
+              {/* Send Mode choice */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-500">Dispatch Option</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditSendImmediately(true)}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
+                      editSendImmediately
+                        ? 'bg-brand-50 border-brand-500 text-brand-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Send Immediately
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditSendImmediately(false)}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
+                      !editSendImmediately
+                        ? 'bg-brand-50 border-brand-500 text-brand-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Schedule for Later
+                  </button>
+                </div>
+              </div>
+
+              {!editSendImmediately && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500">New Scheduled Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={editScheduledAt}
+                    onChange={(e) => setEditScheduledAt(e.target.value)}
+                    min={getLocalDatetimeString(new Date())}
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-gray-900 text-sm focus:outline-none focus:border-brand-500 transition-colors shadow-sm"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1 leading-normal">
+                    Expected format: MM/DD/YYYY, 12-Hour format (e.g. 07/13/2026, 04:30 PM).
+                    Please ensure all fields are fully completed.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-3">
+              <button
+                onClick={() => setIsEditScheduleOpen(false)}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-all shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateCampaignSchedule}
+                className="flex-1 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
