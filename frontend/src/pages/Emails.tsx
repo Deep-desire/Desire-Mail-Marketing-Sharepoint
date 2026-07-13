@@ -10,7 +10,9 @@ import {
   Search,
   Eye,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Calendar,
+  X
 } from 'lucide-react';
 import { createColumnHelper } from '@tanstack/react-table';
 import toast from 'react-hot-toast';
@@ -30,6 +32,13 @@ export default function Emails() {
   const [recipients, setRecipients] = useState<RecipientWithCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, []);
 
   const fetchLogs = () => {
     setLoading(true);
@@ -70,11 +79,22 @@ export default function Emails() {
         const query = searchQuery.toLowerCase();
         const nameMatch = r.name?.toLowerCase().includes(query);
         const emailMatch = r.email?.toLowerCase().includes(query);
-        return nameMatch || emailMatch;
+        if (!nameMatch && !emailMatch) return false;
+      }
+      // 3. Date Filter (compares YYYY-MM-DD local time)
+      if (selectedDate) {
+        const dateToCheck = r.sentAt || r.createdAt;
+        if (!dateToCheck) return false;
+
+        const d = new Date(dateToCheck);
+        const pad = (num: number) => String(num).padStart(2, '0');
+        const localDateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+        if (localDateStr !== selectedDate) return false;
       }
       return true;
     });
-  }, [recipients, activeTab, searchQuery]);
+  }, [recipients, activeTab, searchQuery, selectedDate]);
 
   const columns = useMemo(() => [
     columnHelper.accessor('name', {
@@ -108,7 +128,33 @@ export default function Emails() {
       cell: (info) => <StatusBadge status={info.getValue()} />,
     }),
     columnHelper.accessor('sentAt', {
-      header: 'Sent / Attempted At',
+      header: () => (
+        <div className="flex items-center gap-1.5 justify-start select-none">
+          <span>Sent / Attempted At</span>
+          <div className="relative inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="relative inline-flex items-center cursor-pointer">
+              <Calendar className={`w-3.5 h-3.5 transition-colors ${selectedDate ? 'text-brand-600 font-bold' : 'text-gray-400 hover:text-brand-600'}`} />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={todayStr}
+                className="absolute inset-0 opacity-0 cursor-pointer w-3.5 h-3.5"
+                title="Select Date Filter"
+              />
+            </div>
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate('')}
+                className="p-0.5 rounded-full hover:bg-gray-200 text-gray-450 hover:text-gray-650 transition-all flex items-center justify-center"
+                title="Clear Date"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      ),
       cell: (info) => {
         const val = info.getValue();
         return val ? new Date(val).toLocaleString() : '—';
@@ -143,7 +189,7 @@ export default function Emails() {
         );
       }
     })
-  ], []);
+  ], [selectedDate]);
 
   const getTabClass = (tab: string) => {
     const isActive = activeTab === tab;
@@ -244,6 +290,14 @@ export default function Emails() {
       ) : (
         <div className="space-y-4">
           <ReportTable data={filteredRecipients} columns={columns} pageSize={15} />
+
+          {/* Record Count Section */}
+          <div className="flex justify-between items-center text-xs text-gray-500 font-semibold px-2 py-1 bg-gray-50 border border-gray-200 rounded-xl shadow-sm">
+            <span>Showing {filteredRecipients.length} matching logs</span>
+            {recipients.length > 0 && (
+              <span className="text-gray-400 font-normal">Total logs loaded: {recipients.length}</span>
+            )}
+          </div>
         </div>
       )}
     </div>

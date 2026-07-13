@@ -39,6 +39,7 @@ model Campaign {
   skippedCount Int         @default(0) @map("skipped_count")
 
   recipients   Recipient[]
+  scheduledAt  DateTime?   @map("scheduled_at")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt      @map("updated_at")
 

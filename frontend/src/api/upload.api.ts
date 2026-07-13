@@ -63,6 +63,9 @@ export const uploadApi = {
 
   deleteCampaign: (id: string) => api.delete(`/campaigns/${id}`),
 
+  updateCampaign: (id: string, data: { name?: string; scheduledAt?: string | null; sendImmediately?: boolean }) =>
+    api.put<Campaign>(`/campaigns/${id}`, data),
+
   getCampaignStats: (id: string) =>
     api.get<{
       id: string;

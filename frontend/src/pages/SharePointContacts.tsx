@@ -4,7 +4,7 @@ import {
   RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
   CheckCircle, AlertCircle, XCircle, MinusCircle,
   Users, Mail, Send, History, Trash2, X, AlertTriangle,
-  Calendar, Layers, Search, SlidersHorizontal,
+  Calendar, Layers, Search, SlidersHorizontal, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/upload.api';
@@ -118,6 +118,25 @@ export default function SharePointContacts() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [campaignName, setCampaignName] = useState('');
   const [sending, setSending] = useState(false);
+  // Helper to format date for datetime-local input (YYYY-MM-DDTHH:MM in local time)
+  const getLocalDatetimeString = (dateObj: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}T${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}`;
+  };
+
+  const getInitialScheduledTime = () => {
+    const d = new Date();
+    d.setHours(d.getHours() + 1);
+    return getLocalDatetimeString(d);
+  };
+
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState(getInitialScheduledTime());
+
+  // ── Campaign editing/rescheduling state ──
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [editScheduledAt, setEditScheduledAt] = useState('');
+  const [editSendImmediately, setEditSendImmediately] = useState(false);
 
   // ── Campaign history state ──
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -327,6 +346,17 @@ export default function SharePointContacts() {
       toast.error('No selected valid contacts to send to.');
       return;
     }
+    if (isScheduled) {
+      if (!scheduledAt) {
+        toast.error('Please complete the date & time selection (including hour, minute, and AM/PM)');
+        return;
+      }
+      if (new Date(scheduledAt) <= new Date()) {
+        toast.error('Scheduled date and time must be in the future');
+        return;
+      }
+    }
+
     setSending(true);
     try {
       const res = await uploadApi.createCampaign({
@@ -337,11 +367,21 @@ export default function SharePointContacts() {
         contacts: contacts
           .filter(c => c.itemId && selectedItemIds.has(c.itemId))
           .map(c => ({ name: c.name, email: c.email, itemId: c.itemId })),
-      });
+        scheduledAt: isScheduled ? new Date(scheduledAt).toISOString() : undefined,
+      } as any); // cast to any temporarily if TS types compilation delays
 
       const campaignId = res.data.id;
-      navigate(`/campaigns/${campaignId}?launch=true`);
-      setCampaignName('');
+      if (isScheduled) {
+        toast.success('Campaign scheduled successfully! 🎉');
+        setCampaignName('');
+        setIsScheduled(false);
+        setScheduledAt('');
+        setStep(1);
+        fetchCampaigns();
+      } else {
+        navigate(`/campaigns/${campaignId}?launch=true`);
+        setCampaignName('');
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to start campaign');
     } finally {
@@ -359,6 +399,33 @@ export default function SharePointContacts() {
       fetchCampaigns();
     } catch {
       toast.error('Failed to delete campaign');
+    }
+  };
+
+  // ── Update Campaign Schedule ──
+  const handleUpdateCampaignSchedule = async () => {
+    if (!editingCampaign) return;
+    if (!editSendImmediately) {
+      if (!editScheduledAt) {
+        toast.error('Please complete the date & time selection (including hour, minute, and AM/PM)');
+        return;
+      }
+      if (new Date(editScheduledAt) <= new Date()) {
+        toast.error('Scheduled date and time must be in the future');
+        return;
+      }
+    }
+
+    try {
+      await uploadApi.updateCampaign(editingCampaign.id, {
+        scheduledAt: editSendImmediately ? null : new Date(editScheduledAt).toISOString(),
+        sendImmediately: editSendImmediately,
+      });
+      toast.success(editSendImmediately ? 'Campaign started successfully! 🎉' : 'Campaign rescheduled successfully!');
+      setEditingCampaign(null);
+      fetchCampaigns();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to reschedule campaign');
     }
   };
 
@@ -1140,10 +1207,17 @@ export default function SharePointContacts() {
                       <tr key={c.id} className="hover:bg-gray-50/40 transition-colors">
                         <td className="px-4 py-3">
                           <div className="font-semibold text-gray-900 max-w-[180px] truncate" title={c.name}>{c.name}</div>
-                          <div className="text-xs text-gray-450 text-gray-500 flex items-center gap-1 mt-0.5">
-                            <Calendar className="w-3 h-3 text-gray-400" />
-                            {new Date(c.createdAt).toLocaleDateString()}{' '}
-                            {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <div className="text-xs text-gray-500 flex flex-col gap-0.5 mt-0.5">
+                            <span className="flex items-center gap-1 text-gray-450">
+                              <Calendar className="w-3 h-3 text-gray-400" />
+                              Created: {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            {c.status === 'scheduled' && c.scheduledAt && (
+                              <span className="flex items-center gap-1 text-purple-650 font-semibold">
+                                <Clock className="w-3 h-3 text-purple-500" />
+                                Run at: {new Date(c.scheduledAt).toLocaleDateString()} {new Date(c.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-500 font-medium">{c.config?.name || '—'}</td>
@@ -1167,6 +1241,20 @@ export default function SharePointContacts() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {c.status === 'scheduled' && (
+                              <button
+                                onClick={() => {
+                                  setEditingCampaign(c);
+                                  setEditScheduledAt(c.scheduledAt ? getLocalDatetimeString(new Date(c.scheduledAt)) : getInitialScheduledTime());
+                                  setEditSendImmediately(false);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-purple-50 hover:text-purple-700 text-gray-700 transition-all inline-flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                title="Edit Campaign Schedule"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                Edit Schedule
+                              </button>
+                            )}
                             <button
                               onClick={() => navigate(`/campaigns/${c.id}`)}
                               className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-750 text-gray-700 transition-all inline-flex items-center gap-1 text-xs font-semibold shadow-sm"
@@ -1241,6 +1329,42 @@ export default function SharePointContacts() {
                 </div>
               </div>
 
+              {/* Scheduling Options */}
+              <div className="space-y-3 border-t border-gray-100 pt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 cursor-pointer">
+                    <Calendar className="w-4 h-4 text-brand-600" />
+                    Schedule for Later
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={isScheduled}
+                      onChange={(e) => setIsScheduled(e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600"></div>
+                  </label>
+                </div>
+
+                {isScheduled && (
+                  <div className="space-y-1 animate-fade-in">
+                    <label className="text-[10px] font-medium text-gray-500">Scheduled Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={(e) => setScheduledAt(e.target.value)}
+                      min={getLocalDatetimeString(new Date())}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-gray-900 text-sm focus:outline-none focus:border-brand-500 transition-colors shadow-sm"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1 leading-normal">
+                      Expected format: MM/DD/YYYY, 12-Hour format (e.g. 07/13/2026, 04:30 PM).
+                      Please ensure all fields (Month, Day, Year, Hour, Minute, and AM/PM) are fully completed.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Validation summary */}
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 space-y-1">
                 <p className="font-semibold text-emerald-800">Ready to Launch!</p>
@@ -1266,7 +1390,7 @@ export default function SharePointContacts() {
                   ) : (
                     <>
                       <Play className="w-4 h-4" />
-                      Start Campaign
+                      {isScheduled ? 'Schedule Campaign' : 'Start Campaign'}
                     </>
                   )}
                 </button>
@@ -1437,6 +1561,91 @@ export default function SharePointContacts() {
                 className="bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all shadow-sm"
               >
                 Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Schedule Modal */}
+      {editingCampaign && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 relative border border-gray-200 bg-white shadow-2xl">
+            <button
+              onClick={() => setEditingCampaign(null)}
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-brand-600" />
+              Reschedule Campaign
+            </h3>
+            <p className="text-xs text-gray-500">
+              Update details for scheduled campaign: <span className="font-semibold text-gray-800">{editingCampaign.name}</span>
+            </p>
+
+            <div className="space-y-4 pt-2">
+              {/* Send Mode choice */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-500">Dispatch Option</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditSendImmediately(true)}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
+                      editSendImmediately
+                        ? 'bg-brand-50 border-brand-500 text-brand-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Send Immediately
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditSendImmediately(false)}
+                    className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all ${
+                      !editSendImmediately
+                        ? 'bg-brand-50 border-brand-500 text-brand-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Schedule for Later
+                  </button>
+                </div>
+              </div>
+
+              {!editSendImmediately && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500">New Scheduled Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={editScheduledAt}
+                    onChange={(e) => setEditScheduledAt(e.target.value)}
+                    min={getLocalDatetimeString(new Date())}
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-gray-900 text-sm focus:outline-none focus:border-brand-500 transition-colors shadow-sm"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1 leading-normal">
+                    Expected format: MM/DD/YYYY, 12-Hour format (e.g. 07/13/2026, 04:30 PM).
+                    Please ensure all fields are fully completed.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-3">
+              <button
+                onClick={() => setEditingCampaign(null)}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-all shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateCampaignSchedule}
+                className="flex-1 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
+              >
+                Save Changes
               </button>
             </div>
           </div>

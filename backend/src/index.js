@@ -466,7 +466,7 @@ apiRouter.get('/campaigns', catchAsync(async (req, res) => {
 // POST /campaigns  — create a new campaign from SharePoint contacts
 apiRouter.post('/campaigns', catchAsync(async (req, res) => {
   await authenticate(req);
-  const { name, templateId, syncMode = 'full', configId, contacts } = req.body;
+  const { name, templateId, syncMode = 'full', configId, contacts, scheduledAt } = req.body;
   if (!templateId) return res.status(400).json({ message: 'templateId is required' });
 
   const template = await prisma.template.findUnique({ where: { id: templateId } });
@@ -508,11 +508,24 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
       };
     });
 
+  let campaignStatus = 'processing';
+  let campaignScheduledAt = null;
+  if (scheduledAt) {
+    campaignScheduledAt = new Date(scheduledAt);
+    if (isNaN(campaignScheduledAt.getTime())) {
+      return res.status(400).json({ message: 'Invalid scheduledAt date format' });
+    }
+    if (campaignScheduledAt > new Date()) {
+      campaignStatus = 'scheduled';
+    }
+  }
+
   const campaign = await prisma.campaign.create({
     data: {
       name: name || `Campaign – ${new Date().toLocaleDateString()}`,
       templateId,
-      status: 'processing',
+      status: campaignStatus,
+      scheduledAt: campaignScheduledAt,
       configId: configId || null,
       syncMode: syncMode || 'full',
       totalCount: reconciliation.validCount,
@@ -524,6 +537,14 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
     },
     include: { template: true, config: true },
   });
+
+  // Asynchronously trigger campaign sending immediately if status is processing
+  if (campaign.status === 'processing') {
+    const { triggerCampaignProcessing } = require('./scheduler');
+    triggerCampaignProcessing(campaign.id).catch(err => {
+      console.error(`[Background Campaign Send Error] ${err.message}`);
+    });
+  }
 
   return res.status(201).json(campaign);
 }));
@@ -565,6 +586,63 @@ apiRouter.delete('/campaigns/:id', catchAsync(async (req, res) => {
   if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
   await prisma.campaign.delete({ where: { id } });
   return res.status(200).json({ message: 'Campaign deleted successfully' });
+}));
+
+// PUT /campaigns/:id
+apiRouter.put('/campaigns/:id', catchAsync(async (req, res) => {
+  const { id } = req.params;
+  await authenticate(req);
+  const { name, scheduledAt, sendImmediately } = req.body;
+
+  const campaign = await prisma.campaign.findUnique({
+    where: { id },
+    include: { template: true, config: true }
+  });
+
+  if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+
+  if (campaign.status !== 'scheduled' && campaign.status !== 'failed') {
+    return res.status(400).json({ message: 'Only scheduled or failed campaigns can be edited' });
+  }
+
+  const updateData = {};
+  if (name !== undefined) updateData.name = name.trim();
+
+  if (sendImmediately) {
+    updateData.status = 'processing';
+    updateData.scheduledAt = null;
+  } else if (scheduledAt !== undefined) {
+    if (scheduledAt === null) {
+      updateData.status = 'processing';
+      updateData.scheduledAt = null;
+    } else {
+      const parsedDate = new Date(scheduledAt);
+      if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid scheduledAt date' });
+      }
+      if (parsedDate <= new Date()) {
+        return res.status(400).json({ message: 'Scheduled time must be in the future' });
+      }
+      updateData.scheduledAt = parsedDate;
+      updateData.status = 'scheduled';
+    }
+  }
+
+  const updatedCampaign = await prisma.campaign.update({
+    where: { id },
+    data: updateData,
+    include: { template: true, config: true }
+  });
+
+  // If status transitioned to processing, start sending immediately in background
+  if (updatedCampaign.status === 'processing') {
+    const { triggerCampaignProcessing } = require('./scheduler');
+    triggerCampaignProcessing(updatedCampaign.id).catch(err => {
+      console.error(`[Background Reschedule Campaign Send Error] ${err.message}`);
+    });
+  }
+
+  return res.status(200).json(updatedCampaign);
 }));
 
 // GET /campaigns/:id/recipients
@@ -982,6 +1060,12 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 7071;
 app.listen(PORT, () => {
   console.log(`[Desire Mail Marketing] Backend listening on port ${PORT}`);
+  try {
+    const { startScheduler } = require('./scheduler');
+    startScheduler();
+  } catch (err) {
+    console.error('[Scheduler Init Error]', err);
+  }
 });
 
 module.exports = app;

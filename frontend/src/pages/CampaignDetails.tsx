@@ -34,8 +34,6 @@ export default function CampaignDetails() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; active: boolean; status?: 'sending' | 'waiting' } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'sent' | 'failed' | 'pending' | 'skipped'>('all');
 
   // ── Recipient detail & edit modals state ──
@@ -179,94 +177,23 @@ export default function CampaignDetails() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Hook to handle active campaign sending if triggered on launch
+  // Clean up url parameters and set active sending if launch is triggered
   useEffect(() => {
-    if (!id || !campaign || !shouldLaunch || sending || activeSendingCampaigns.has(id)) return;
-    activeSendingCampaigns.add(id);
-
-    if (campaign.status !== 'processing') {
-      activeSendingCampaigns.delete(id);
-      return;
-    }
-
-    const runSendingLoop = async () => {
-      setSending(true);
+    if (shouldLaunch && id) {
       window.history.replaceState(null, '', `/campaigns/${id}`);
+    }
+  }, [id, shouldLaunch]);
 
-      try {
-        // Fetch the initial count of pending recipients to calculate exact batches to process
-        const pendingCountRes = await uploadApi.getCampaignRecipients(id, 1, 1, 'pending');
-        const totalPending = pendingCountRes.data.total;
-        const totalBatches = Math.ceil(totalPending / 5) || 1;
-
-        setBatchProgress({ current: 0, total: totalBatches, active: true, status: 'sending' });
-
-        let currentBatch = 0;
-        let hasPending = totalPending > 0;
-
-        while (hasPending) {
-          // Always query page 1 of 'pending' status — sent items automatically fall out of this filter
-          const recipRes = await uploadApi.getCampaignRecipients(id, 1, 5, 'pending');
-          const pending = recipRes.data.recipients;
-
-          if (pending.length === 0) {
-            break;
-          }
-
-          currentBatch++;
-          setBatchProgress({ current: currentBatch - 1, total: totalBatches, active: true, status: 'sending' });
-
-          await uploadApi.sendCampaignBatch(id, { recipientIds: pending.map((r) => r.id) });
-
-          setBatchProgress({ current: currentBatch, total: totalBatches, active: true, status: 'sending' });
-
-          const [campRes, recRes] = await Promise.all([
-            uploadApi.getCampaign(id),
-            uploadApi.getCampaignRecipients(id, 1, 1000),
-          ]);
-          setCampaign(campRes.data);
-          setRecipients(recRes.data.recipients);
-
-          const checkPendingRes = await uploadApi.getCampaignRecipients(id, 1, 1, 'pending');
-          hasPending = checkPendingRes.data.total > 0;
-
-          if (hasPending) {
-            setBatchProgress({ current: currentBatch, total: totalBatches, active: true, status: 'waiting' });
-            await new Promise((resolve) => setTimeout(resolve, 15000));
-          }
-        }
-
-        await uploadApi.finalizeCampaign(id);
-        toast.success('Campaign sent successfully! 🎉');
-
-        const [campRes, recRes] = await Promise.all([
-          uploadApi.getCampaign(id),
-          uploadApi.getCampaignRecipients(id, 1, 1000),
-        ]);
-        setCampaign(campRes.data);
-        setRecipients(recRes.data.recipients);
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Failed during campaign sending');
-      } finally {
-        setBatchProgress(null);
-        setSending(false);
-        activeSendingCampaigns.delete(id);
-      }
-    };
-
-    runSendingLoop();
-  }, [id, campaign, shouldLaunch, sending]);
-
-  // Hook to poll campaign status if it's currently processing and not actively driven by client loop
+  // Hook to poll campaign status if it's currently processing on the server
   useEffect(() => {
-    if (!id || !campaign || campaign.status !== 'processing' || shouldLaunch || sending) return;
+    if (!id || !campaign || campaign.status !== 'processing') return;
 
     const interval = setInterval(() => {
       fetchDetails();
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [id, campaign?.status, shouldLaunch, sending]);
+  }, [id, campaign?.status]);
 
   const handleEditRecipient = async () => {
     if (!editRecipient || !id) return;
@@ -314,6 +241,10 @@ export default function CampaignDetails() {
     return <div className="text-gray-500 font-medium">Campaign not found</div>;
   }
 
+  const progressPercent = campaign.totalCount > 0
+    ? Math.round(((campaign.sentCount + campaign.failedCount) / campaign.totalCount) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -341,26 +272,20 @@ export default function CampaignDetails() {
       </div>
 
       {/* Processing / Sending indicator */}
-      {((campaign.status === 'processing' && !shouldLaunch && !sending) || (batchProgress && batchProgress.active)) && (
+      {campaign.status === 'processing' && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3 shadow-sm">
           <div className="flex items-center gap-3">
             <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
             <p className="text-sm text-blue-800 font-semibold">
-              {batchProgress && batchProgress.active
-                ? batchProgress.status === 'waiting'
-                  ? `Batch ${batchProgress.current} of ${batchProgress.total} completed. Cooling down for 15s to keep mailbox safe...`
-                  : `Sending campaign emails... Batch ${batchProgress.current + 1} of ${batchProgress.total} in progress.`
-                : 'Campaign sending is currently in progress...'}
+              Campaign sending is in progress on the server... {campaign.sentCount + campaign.failedCount} / {campaign.totalCount} emails processed ({progressPercent}%).
             </p>
           </div>
-          {batchProgress && batchProgress.active && (
-            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200 shadow-inner">
-              <div
-                className="bg-brand-600 h-full transition-all duration-350 transition-all duration-300 rounded-full"
-                style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
-              />
-            </div>
-          )}
+          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200 shadow-inner">
+            <div
+              className="bg-brand-600 h-full transition-all duration-300 rounded-full"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -478,7 +403,7 @@ export default function CampaignDetails() {
                   <span className="text-gray-400 font-semibold inline-block w-16">Sent At:</span>
                   <span className="text-gray-800 font-medium">{viewRecipient.sentAt ? new Date(viewRecipient.sentAt).toLocaleString() : '—'}</span>
                 </div>
-                 <div>
+                <div>
                   <span className="text-gray-400 font-semibold inline-block w-16">From:</span>
                   <span className="text-gray-800 font-medium">Vishv Umiya Foundation &lt;{campaign.senderEmail || 'marketing@vuf.org'}&gt;</span>
                 </div>
@@ -493,21 +418,19 @@ export default function CampaignDetails() {
             <div className="flex border-b border-gray-200">
               <button
                 onClick={() => setPreviewTab('html')}
-                className={`py-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
-                  previewTab === 'html'
+                className={`py-2.5 px-4 text-xs font-bold transition-all border-b-2 ${previewTab === 'html'
                     ? 'border-brand-600 text-brand-600'
                     : 'border-transparent text-gray-500 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 HTML Preview
               </button>
               <button
                 onClick={() => setPreviewTab('text')}
-                className={`py-2.5 px-4 text-xs font-bold transition-all border-b-2 ${
-                  previewTab === 'text'
+                className={`py-2.5 px-4 text-xs font-bold transition-all border-b-2 ${previewTab === 'text'
                     ? 'border-brand-600 text-brand-600'
                     : 'border-transparent text-gray-500 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 Plain Text View
               </button>
@@ -538,10 +461,10 @@ export default function CampaignDetails() {
                         </head>
                         <body>
                           ${campaign.template.htmlBody
-                            .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
-                            .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
-                            .replace(/\{\{\s*unsubscribeLink\s*\}\}/g, '#')
-                          }
+                        .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
+                        .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
+                        .replace(/\{\{\s*unsubscribeLink\s*\}\}/g, '#')
+                      }
                         </body>
                       </html>
                     `}

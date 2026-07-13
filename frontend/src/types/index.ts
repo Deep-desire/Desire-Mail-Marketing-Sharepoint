@@ -53,7 +53,7 @@ export interface SPContactsResponse {
 export interface Campaign {
   id: string;
   name: string;
-  status: 'processing' | 'completed' | 'failed';
+  status: 'processing' | 'completed' | 'failed' | 'scheduled';
   templateId: string;
   template?: Template;
   totalCount: number;
@@ -61,6 +61,7 @@ export interface Campaign {
   failedCount: number;
   pendingCount: number;
   skippedCount: number;
+  scheduledAt?: string | null;
   createdAt: string;
   updatedAt: string;
   senderEmail?: string;
