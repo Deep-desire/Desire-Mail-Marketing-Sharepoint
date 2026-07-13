@@ -70,6 +70,48 @@ export default function SharePointContacts() {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [unsubscribedEmails, setUnsubscribedEmails] = useState<Set<string>>(new Set());
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [rangeFrom, setRangeFrom] = useState<string>('1');
+  const [rangeTo, setRangeTo] = useState<string>('');
+
+  const selectedValidCount = contacts.filter(
+    (c) => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)
+  ).length;
+
+  const handleApplyRange = (isCumulative: boolean) => {
+    const from = parseInt(rangeFrom, 10);
+    const to = parseInt(rangeTo, 10);
+
+    if (isNaN(from) || isNaN(to) || from < 1 || to < from) {
+      toast.error('Please enter a valid range (From must be <= To, and both >= 1)');
+      return;
+    }
+
+    if (to > contacts.length) {
+      toast.error(`Range upper bound cannot exceed total contacts count (${contacts.length})`);
+      return;
+    }
+
+    const rangeValidIds: string[] = [];
+    contacts.forEach((c, idx) => {
+      const rowNum = idx + 1;
+      if (rowNum >= from && rowNum <= to && c.status === 'valid' && c.itemId) {
+        rangeValidIds.push(c.itemId);
+      }
+    });
+
+    setSelectedItemIds((prev) => {
+      const next = isCumulative ? new Set(prev) : new Set<string>();
+      rangeValidIds.forEach(id => next.add(id));
+      return next;
+    });
+
+    toast.success(
+      isCumulative
+        ? `Added range ${from}-${to} (${rangeValidIds.length} valid contacts added)`
+        : `Selected range ${from}-${to} (${rangeValidIds.length} valid contacts selected)`
+    );
+  };
 
   // ── Campaign creation state ──
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -255,6 +297,16 @@ export default function SharePointContacts() {
       setContacts(result.contacts);
       setStats(result.stats);
 
+      // Auto-select all valid contacts by default
+      const initialSelected = new Set(
+        result.contacts
+          .filter((c) => c.status === 'valid' && c.itemId)
+          .map((c) => c.itemId as string)
+      );
+      setSelectedItemIds(initialSelected);
+      setRangeFrom('1');
+      setRangeTo(String(result.contacts.length));
+
       setStep(1); // Reset to step 1 on new sync
       const selectedConfig = spConfigs.find((c) => c.id === selectedConfigId);
       toast.success(`Synced ${res.data.total} contacts from "${selectedConfig?.name || 'SharePoint'}" (${syncMode} mode)`);
@@ -271,8 +323,8 @@ export default function SharePointContacts() {
       toast.error('Please select an email template');
       return;
     }
-    if (stats.validCount === 0) {
-      toast.error('No valid contacts to send to. Sync first.');
+    if (selectedValidCount === 0) {
+      toast.error('No selected valid contacts to send to.');
       return;
     }
     setSending(true);
@@ -282,7 +334,9 @@ export default function SharePointContacts() {
         templateId: selectedTemplate,
         syncMode: syncMode,
         configId: selectedConfigId || undefined,
-        contacts: contacts.map(c => ({ name: c.name, email: c.email, itemId: c.itemId })), // Upload the finalized local state!
+        contacts: contacts
+          .filter(c => c.itemId && selectedItemIds.has(c.itemId))
+          .map(c => ({ name: c.name, email: c.email, itemId: c.itemId })),
       });
 
       const campaignId = res.data.id;
@@ -387,10 +441,20 @@ export default function SharePointContacts() {
   };
 
   const deleteContact = (index: number) => {
+    const contactToDelete = contacts[index];
     const updatedRaw = contacts.filter((_, idx) => idx !== index);
     const recalculated = recalculateContactsList(updatedRaw, unsubscribedEmails);
     setContacts(recalculated.contacts);
     setStats(recalculated.stats);
+
+    if (contactToDelete?.itemId) {
+      setSelectedItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(contactToDelete.itemId!);
+        return next;
+      });
+    }
+
     if (editingIndex === index) {
       setEditingIndex(null);
     } else if (editingIndex !== null && editingIndex > index) {
@@ -411,6 +475,26 @@ export default function SharePointContacts() {
       );
     })
     .slice(0, showAllContacts ? undefined : 20);
+
+  const visibleValidContacts = visibleContacts.filter(c => c.status === 'valid');
+  const isAllVisibleSelected = visibleValidContacts.length > 0 && visibleValidContacts.every(c => c.itemId && selectedItemIds.has(c.itemId));
+  const isSomeVisibleSelected = visibleValidContacts.length > 0 && visibleValidContacts.some(c => c.itemId && selectedItemIds.has(c.itemId));
+
+  const handleToggleAllVisible = () => {
+    setSelectedItemIds(prev => {
+      const next = new Set(prev);
+      if (isAllVisibleSelected) {
+        visibleValidContacts.forEach(c => {
+          if (c.itemId) next.delete(c.itemId);
+        });
+      } else {
+        visibleValidContacts.forEach(c => {
+          if (c.itemId) next.add(c.itemId);
+        });
+      }
+      return next;
+    });
+  };
 
   const statusIcon = (status: string) => {
     switch (status) {
@@ -596,12 +680,84 @@ export default function SharePointContacts() {
 
           {/* Stats row */}
           {contacts.length > 0 && (
-            <div className="flex flex-wrap gap-3 animate-fade-in">
-              <StatPill icon={<Users className="w-4 h-4" />} label="Total" value={stats.total} color="text-gray-900" />
-              <StatPill icon={<CheckCircle className="w-4 h-4" />} label="Valid" value={stats.validCount} color="text-emerald-600" />
-              <StatPill icon={<XCircle className="w-4 h-4" />} label="Invalid" value={stats.invalidCount} color="text-red-600" />
-              <StatPill icon={<MinusCircle className="w-4 h-4" />} label="Duplicates" value={stats.duplicateCount} color="text-amber-600" />
-              <StatPill icon={<AlertCircle className="w-4 h-4" />} label="Unsubscribed" value={stats.unsubscribedCount} color="text-gray-500" />
+            <div className="flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+              <div className="flex flex-wrap gap-3">
+                <StatPill icon={<Users className="w-4 h-4" />} label="Total" value={stats.total} color="text-gray-900" />
+                <StatPill icon={<Mail className="w-4 h-4" />} label="Selected (to Send)" value={selectedValidCount} color="text-brand-600" />
+                <StatPill icon={<CheckCircle className="w-4 h-4" />} label="Valid" value={stats.validCount} color="text-emerald-600" />
+                <StatPill icon={<XCircle className="w-4 h-4" />} label="Invalid" value={stats.invalidCount} color="text-red-600" />
+                <StatPill icon={<MinusCircle className="w-4 h-4" />} label="Duplicates" value={stats.duplicateCount} color="text-amber-600" />
+                <StatPill icon={<AlertCircle className="w-4 h-4" />} label="Unsubscribed" value={stats.unsubscribedCount} color="text-gray-500" />
+              </div>
+              <div className="flex flex-wrap items-center gap-4 bg-gray-50 px-4 py-2 rounded-2xl border border-gray-200 shadow-sm">
+                {/* Bulk toggles */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allValid = new Set(contacts.filter(c => c.status === 'valid' && c.itemId).map(c => c.itemId!));
+                      setSelectedItemIds(allValid);
+                      toast.success(`Selected all ${allValid.size} valid contacts`);
+                    }}
+                    className="text-xs text-brand-600 hover:text-brand-700 font-bold transition-colors"
+                  >
+                    Select All Valid
+                  </button>
+                  <span className="text-gray-300 font-normal">|</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedItemIds(new Set());
+                      toast.success('Cleared all selections');
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-600 font-bold transition-colors"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+
+                <span className="hidden lg:inline text-gray-300">|</span>
+
+                {/* Range Select Controls */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-gray-500 font-medium">Select Range:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={contacts.length}
+                    value={rangeFrom}
+                    onChange={(e) => setRangeFrom(e.target.value)}
+                    className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-semibold text-gray-800 focus:outline-none focus:border-brand-500 shadow-sm"
+                    placeholder="From"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={contacts.length}
+                    value={rangeTo}
+                    onChange={(e) => setRangeTo(e.target.value)}
+                    className="w-16 bg-white border border-gray-300 rounded-lg px-2 py-1 text-center font-semibold text-gray-800 focus:outline-none focus:border-brand-500 shadow-sm"
+                    placeholder="To"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleApplyRange(false)}
+                    className="bg-brand-100 hover:bg-brand-200 text-brand-700 font-bold px-2.5 py-1 rounded-lg transition-colors shadow-sm cursor-pointer"
+                    title="Set selection to this range"
+                  >
+                    Set Range
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyRange(true)}
+                    className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold px-2.5 py-1 rounded-lg transition-colors shadow-sm cursor-pointer"
+                    title="Add this range of records to current selection"
+                  >
+                    Add Range
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -738,6 +894,19 @@ export default function SharePointContacts() {
                   <table className="w-full table-fixed min-w-[700px]">
                     <thead>
                       <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50">
+                        <th className="px-4 py-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isAllVisibleSelected}
+                            ref={input => {
+                              if (input) {
+                                input.indeterminate = isSomeVisibleSelected && !isAllVisibleSelected;
+                              }
+                            }}
+                            onChange={handleToggleAllVisible}
+                            className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer border-gray-300"
+                          />
+                        </th>
                         <th className="px-4 py-3 w-14">#</th>
                         {selectedColumns.map((colName) => {
                           let widthClass = "w-48";
@@ -778,6 +947,26 @@ export default function SharePointContacts() {
 
                         return (
                           <tr key={idx} className="hover:bg-gray-50/40 transition-colors group">
+                            <td className="px-4 py-3 text-center w-10">
+                              <input
+                                type="checkbox"
+                                checked={c.itemId ? selectedItemIds.has(c.itemId) : false}
+                                disabled={c.status !== 'valid'}
+                                onChange={() => {
+                                  if (!c.itemId) return;
+                                  setSelectedItemIds(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(c.itemId!)) {
+                                      next.delete(c.itemId!);
+                                    } else {
+                                      next.add(c.itemId!);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                              />
+                            </td>
                             <td className="px-4 py-3 text-gray-400 text-xs">{actualIndex + 1}</td>
                             {selectedColumns.map((colName) => {
                               const isNameField = colName === mappedNameField;
@@ -903,7 +1092,7 @@ export default function SharePointContacts() {
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setStep(2)}
-                disabled={stats.validCount === 0}
+                disabled={selectedValidCount === 0}
                 className="btn-primary flex items-center gap-2 px-6 py-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold shadow-sm transition-all hover:translate-x-0.5"
               >
                 Next: Setup Campaign
@@ -1055,7 +1244,7 @@ export default function SharePointContacts() {
               {/* Validation summary */}
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-800 space-y-1">
                 <p className="font-semibold text-emerald-800">Ready to Launch!</p>
-                <p><strong>{stats.validCount}</strong> valid contacts will receive this email.</p>
+                <p><strong>{selectedValidCount}</strong> valid contacts (selected out of {stats.validCount}) will receive this email.</p>
                 {stats.unsubscribedCount > 0 && (
                   <p className="text-gray-500">{stats.unsubscribedCount} unsubscribed contacts will be skipped.</p>
                 )}
@@ -1066,7 +1255,7 @@ export default function SharePointContacts() {
                 <button
                   id="start-campaign-btn"
                   onClick={handleStartCampaign}
-                  disabled={sending || !selectedTemplate}
+                  disabled={sending || !selectedTemplate || selectedValidCount === 0}
                   className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed py-3 text-sm font-semibold rounded-xl"
                 >
                   {sending ? (

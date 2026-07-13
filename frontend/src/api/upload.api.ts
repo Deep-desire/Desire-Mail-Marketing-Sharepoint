@@ -58,7 +58,7 @@ export const uploadApi = {
     templateId: string;
     syncMode?: 'incremental' | 'full';
     configId?: string;
-    contacts?: { name: string; email: string }[];
+    contacts?: { name: string; email: string; itemId?: string | null }[];
   }) => api.post<Campaign>('/campaigns', data),
 
   deleteCampaign: (id: string) => api.delete(`/campaigns/${id}`),

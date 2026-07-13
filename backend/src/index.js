@@ -476,7 +476,10 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
   // IMPORTANT: when contacts come from the frontend (already-previewed list), we still
   // honour syncMode and configId so incremental filtering is applied correctly.
   let reconciliation;
-  if (Array.isArray(contacts) && contacts.length > 0) {
+  if (contacts !== undefined) {
+    if (!Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({ message: 'No contacts selected for the campaign' });
+    }
     // contacts already have itemId embedded from the preview step
     reconciliation = await reconcileContacts(contacts, syncMode, configId || null, templateId || null);
   } else {
