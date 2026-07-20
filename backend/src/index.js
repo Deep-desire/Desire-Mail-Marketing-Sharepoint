@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { prisma } = require('./prisma');
 const { generateToken, comparePassword, authenticate } = require('./auth');
-const { sendEmail } = require('./email');
+const { sendEmail, getIndividualDelay } = require('./email');
 const { renderTemplate, invalidateTemplate } = require('./templates-service');
 const { getSharePointContacts, discoverFields, testConnection, updateSharePointEmailSent } = require('./sharepoint');
 
@@ -763,7 +763,9 @@ apiRouter.post('/campaigns/:id/send-batch', batchLimiter, catchAsync(async (req,
 
     // Only inject individual send delay if it is NOT the last recipient in this batch
     if (i < recipients.length - 1) {
-      await sleep(2500);
+      const delayMs = getIndividualDelay();
+      console.log(`[API Send-Batch] Delaying for ${delayMs / 1000}s before sending next email...`);
+      await sleep(delayMs);
     }
   }
 

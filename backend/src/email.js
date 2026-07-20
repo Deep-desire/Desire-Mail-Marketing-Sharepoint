@@ -93,6 +93,19 @@ async function sendEmail(options) {
     );
   }
 }
+/**
+ * Calculates a random individual email delay between configured minimum and maximum limits (in milliseconds).
+ * Defaults to a random duration between 10 and 15 seconds.
+ * 
+ * @returns {number} Delay in milliseconds
+ */
+function getIndividualDelay() {
+  const minSec = parseInt(process.env.EMAIL_DELAY_MIN_SEC || '10', 10);
+  const maxSec = parseInt(process.env.EMAIL_DELAY_MAX_SEC || '15', 10);
+  const minMs = Math.min(minSec, maxSec) * 1000;
+  const maxMs = Math.max(minSec, maxSec) * 1000;
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
 
-module.exports = { sendEmail };
+module.exports = { sendEmail, getIndividualDelay };
 

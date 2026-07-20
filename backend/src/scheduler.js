@@ -1,5 +1,5 @@
 const { prisma } = require('./prisma');
-const { sendEmail } = require('./email');
+const { sendEmail, getIndividualDelay } = require('./email');
 const { renderTemplate } = require('./templates-service');
 const { updateSharePointEmailSent } = require('./sharepoint');
 const crypto = require('crypto');
@@ -103,10 +103,11 @@ async function processCampaign(campaignId) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   while (true) {
+    const batchSize = parseInt(process.env.BATCH_SIZE || '5', 10);
     // 1. Fetch next batch of pending recipients
     const recipients = await prisma.recipient.findMany({
       where: { campaignId, status: 'pending' },
-      take: 5,
+      take: batchSize,
       orderBy: { createdAt: 'asc' }
     });
 
@@ -203,7 +204,9 @@ async function processCampaign(campaignId) {
 
       // Inject individual send delay if it is NOT the last recipient in this batch
       if (i < recipients.length - 1) {
-        await sleep(2500);
+        const delayMs = getIndividualDelay();
+        console.log(`[Scheduler] Delaying for ${delayMs / 1000}s before sending next email...`);
+        await sleep(delayMs);
       }
     }
 
@@ -213,9 +216,11 @@ async function processCampaign(campaignId) {
     });
 
     if (checkCampaign && checkCampaign.pendingCount > 0) {
-      // Cooldown delay of 15 seconds between batches
-      console.log(`[Scheduler] Batch complete. Cooling down for 15s before next batch of campaign ${campaignId}...`);
-      await sleep(15000);
+      // Cooldown delay between batches
+      const batchDelaySec = parseInt(process.env.BATCH_DELAY_SEC || '15', 10);
+      const batchDelayMs = batchDelaySec * 1000;
+      console.log(`[Scheduler] Batch complete. Cooling down for ${batchDelaySec}s before next batch of campaign ${campaignId}...`);
+      await sleep(batchDelayMs);
     } else {
       break;
     }
