@@ -1497,7 +1497,8 @@ export default function SharePointContacts() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirm Modal */}
