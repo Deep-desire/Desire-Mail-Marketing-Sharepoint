@@ -1054,8 +1054,12 @@ app.use('/', apiRouter);
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(`[Express Error] ${err.stack || err.message}`);
   const status = err.message === 'Unauthorized' ? 401 : 400;
+  if (status === 401) {
+    console.warn(`[Express Auth] Unauthorized request: ${req.method} ${req.originalUrl}`);
+  } else {
+    console.error(`[Express Error] ${err.stack || err.message}`);
+  }
   return res.status(status).json({ message: err.message });
 });
 
