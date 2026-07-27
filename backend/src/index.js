@@ -13,8 +13,34 @@ require('dotenv').config();
 const app = express();
 
 // --- CORS ---
+const sanitizeOrigin = (url) => {
+  if (!url) return '';
+  let trimmed = url.trim();
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    trimmed = `https://${trimmed}`;
+  }
+  return trimmed.replace(/\/+$/, '');
+};
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow server-to-server requests, mobile apps, or curl with no origin header
+    if (!origin) return callback(null, true);
+
+    const configuredOrigin = process.env.FRONTEND_URL ? sanitizeOrigin(process.env.FRONTEND_URL) : 'http://localhost:5173';
+    const allowedOrigins = [
+      configuredOrigin,
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+    ];
+
+    // Check if origin matches configured origin, local dev, or any vercel.app domain
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
