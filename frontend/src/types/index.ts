@@ -81,6 +81,7 @@ export interface Recipient {
   error: string | null;
   aiSubject?: string | null;
   aiBody?: string | null;
+  rawFields?: Record<string, unknown> | null;
   sentAt: string | null;
   campaignId: string;
   createdAt: string;
