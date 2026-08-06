@@ -641,9 +641,11 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
     include: { template: true, config: true },
   });
 
-  // Asynchronously trigger campaign sending immediately if status is processing
+  // Trigger campaign sending immediately if status is processing.
+  // Must be awaited: Vercel can freeze the function the instant the
+  // response is sent, killing an unawaited outbound call before it lands.
   if (campaign.status === 'processing') {
-    triggerCampaignOrchestration(campaign.id).catch(err => {
+    await triggerCampaignOrchestration(campaign.id).catch(err => {
       console.error(`[Background Campaign Send Error] ${err.message}`);
     });
   }
@@ -736,9 +738,10 @@ apiRouter.put('/campaigns/:id', catchAsync(async (req, res) => {
     include: { template: true, config: true }
   });
 
-  // If status transitioned to processing or scheduled, trigger orchestration
+  // If status transitioned to processing or scheduled, trigger orchestration.
+  // Must be awaited — see note above on the creation route.
   if (updatedCampaign.status === 'processing' || updatedCampaign.status === 'scheduled') {
-    triggerCampaignOrchestration(updatedCampaign.id).catch(err => {
+    await triggerCampaignOrchestration(updatedCampaign.id).catch(err => {
       console.error(`[Background Campaign Orchestration Error] ${err.message}`);
     });
   }
