@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { createColumnHelper } from '@tanstack/react-table';
 import toast from 'react-hot-toast';
@@ -513,9 +514,38 @@ export default function CampaignDetails() {
                   <span className="text-gray-800 font-medium">Vishv Umiya Foundation &lt;{campaign.senderEmail || 'marketing@vuf.org'}&gt;</span>
                 </div>
                 <div className="sm:text-right">
-                  <span className="text-gray-400 font-semibold inline-block w-16">Template:</span>
-                  <span className="text-gray-800 font-medium">{campaign.template.name}</span>
+                  <span className="text-gray-400 font-semibold inline-block w-16">Strategy:</span>
+                  <span className="text-gray-800 font-medium">
+                    {campaign.isAiGenerated ? (
+                      <span className="text-purple-700 font-bold inline-flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-purple-600" /> AI Draft ({campaign.aiModel || 'GPT-4o'})
+                      </span>
+                    ) : (
+                      campaign.template?.name || 'Standard Template'
+                    )}
+                  </span>
                 </div>
+                {viewRecipient.rawFields && typeof viewRecipient.rawFields === 'object' && (
+                  <div className="col-span-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                    {Object.entries(viewRecipient.rawFields).map(([k, v]) => {
+                      if (!v) return null;
+                      const valStr = String(v);
+                      const isLink = valStr.startsWith('http');
+                      return (
+                        <div key={k} className="flex items-center gap-1">
+                          <span className="font-semibold text-gray-500">{k}:</span>
+                          {isLink ? (
+                            <a href={valStr} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800">
+                              {valStr}
+                            </a>
+                          ) : (
+                            <span className="text-gray-800 font-medium">{valStr}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -548,40 +578,20 @@ export default function CampaignDetails() {
                   <iframe
                     title="Rendered Email HTML"
                     className="w-full flex-1 border-none bg-white rounded min-h-[250px]"
-                    srcDoc={`
-                      <!DOCTYPE html>
-                      <html>
-                        <head>
-                          <meta charset="utf-8">
-                          <style>
-                            body {
-                              font-family: 'Inter', system-ui, sans-serif;
-                              color: #1e293b;
-                              line-height: 1.5;
-                              margin: 0;
-                              padding: 15px;
-                              background-color: #ffffff;
-                            }
-                          </style>
-                        </head>
-                        <body>
-                          ${campaign.template.htmlBody
-                        .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
-                        .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
-                        .replace(/\{\{\s*unsubscribeLink\s*\}\}/g, '#')
-                      }
-                        </body>
-                      </html>
-                    `}
+                    srcDoc={
+                      viewRecipient.aiBody ||
+                      (campaign.template?.htmlBody
+                        ? campaign.template.htmlBody
+                            .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
+                            .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
+                            .replace(/\{\{\s*unsubscribeLink\s*\}\}/g, '#')
+                        : `<p>Hello ${viewRecipient.name},</p><p>Personalized message generated for ${viewRecipient.email}</p>`)
+                    }
                   />
                 </div>
               ) : (
                 <pre className="text-xs font-mono text-gray-700 bg-white p-4 rounded-lg flex-1 overflow-x-auto whitespace-pre-wrap border border-gray-200 shadow-sm">
-                  {campaign.template.plainTextBody
-                    .replace(/\{\{\s*name\s*\}\}/g, viewRecipient.name)
-                    .replace(/\{\{\s*email\s*\}\}/g, viewRecipient.email)
-                    .replace(/\{\{\s*unsubscribeLink\s*\}\}/g, '#')
-                  }
+                  {viewRecipient.aiSubject || campaign.template?.plainTextBody || 'AI Draft Mail'}
                 </pre>
               )}
             </div>

@@ -1,0 +1,9 @@
+node_modules
+local.settings.json
+dist
+bin
+obj
+.vs
+.vscode
+.python_packages
+*.user

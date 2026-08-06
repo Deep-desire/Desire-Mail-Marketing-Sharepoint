@@ -20,7 +20,6 @@ model Admin {
 }
 
 /// A Campaign represents one send-run fetched from SharePoint.
-/// Contacts are no longer stored from Excel — they come live from SharePoint.
 model Campaign {
   id            String            @id @default(uuid())
   name          String
@@ -97,16 +96,14 @@ model Template {
   @@map("templates")
 }
 
-/// A SharePoint list configuration managed dynamically from the UI.
-/// Credentials default to root .env values if left null.
 model SharePointConfig {
   id           String   @id @default(uuid())
-  name         String                          // Human-readable label e.g. "Marketing List"
-  siteId       String   @map("site_id")        // e.g. tenant.sharepoint.com,abc,def
-  listId       String   @map("list_id")        // GUID of the SharePoint list
-  tenantId     String?  @map("tenant_id")      // null → fallback to TENANT_ID env var
-  clientId     String?  @map("client_id")      // null → fallback to SP_CLIENT_ID env var
-  clientSecret String?  @map("client_secret")  // null → fallback to SP_CLIENT_SECRET env var
+  name         String
+  siteId       String   @map("site_id")
+  listId       String   @map("list_id")
+  tenantId     String?  @map("tenant_id")
+  clientId     String?  @map("client_id")
+  clientSecret String?  @map("client_secret")
   isActive     Boolean  @default(true) @map("is_active")
   sortOrder    Int      @default(0)   @map("sort_order")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -116,4 +113,3 @@ model SharePointConfig {
   @@index([isActive])
   @@map("sharepoint_configs")
 }
-

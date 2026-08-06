@@ -66,16 +66,122 @@ async function getAccessToken(tenantId, clientId, clientSecret) {
 }
 
 /**
- * Auto-detect name and email field names from first item's fields.
- * SharePoint internal field names can vary across sites.
+ * Fetch list column definitions from Graph API to map display names (e.g. "Email", "Full Name")
+ * to internal field names (e.g. "field_7", "field_3").
  */
-function resolveFieldNames(fields = {}) {
-  const keys = Object.keys(fields);
-  const nameCandidates = ['contactname', 'title', 'fullname', 'name', 'full_x0020_name', 'firstname'];
-  const emailCandidates = ['email', 'emailaddress', 'email_x0020_address', 'workemail', 'work_x0020_email'];
+async function fetchColumnMap(siteId, listId, token) {
+  try {
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns`;
+    const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+    const columns = res.data.value || [];
+    const map = new Map();
+    for (const col of columns) {
+      if (col.displayName && col.name) {
+        map.set(col.displayName.trim(), col.name.trim());
+      }
+    }
+    return map;
+  } catch (err) {
+    console.warn(`[SharePoint Column Map] Could not fetch columns metadata: ${err.message}`);
+    return new Map();
+  }
+}
 
-  const nameField = keys.find((key) => nameCandidates.includes(key.toLowerCase())) || null;
-  const emailField = keys.find((key) => emailCandidates.includes(key.toLowerCase())) || null;
+/**
+ * Auto-detect name and email field names from item data and column metadata.
+ * Handles standard SharePoint field names, custom names, and Excel-imported (field_0, field_7) schemas.
+ */
+function resolveFieldNames(allItems = [], columnMap = new Map()) {
+  if (!allItems || allItems.length === 0) return { nameField: null, emailField: null };
+
+  const firstFields = allItems[0]?.fields || {};
+  const keys = Object.keys(firstFields);
+
+  const nameCandidates = [
+    'contactname', 'title', 'fullname', 'name', 'full_x0020_name', 'firstname',
+    'leadowner', 'owner', 'contact', 'customername', 'person'
+  ];
+  const emailCandidates = [
+    'email', 'emailaddress', 'email_x0020_address', 'workemail', 'work_x0020_email',
+    'mail', 'primaryemail', 'e-mail'
+  ];
+
+  let emailField = null;
+  let nameField = null;
+
+  // 1. Column Map matching (displayName -> internalName)
+  for (const [dispName, intName] of columnMap.entries()) {
+    const cleanDisp = dispName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!emailField) {
+      if (emailCandidates.some((c) => c.replace(/[^a-z0-9]/g, '') === cleanDisp) || cleanDisp.includes('email') || cleanDisp === 'mail') {
+        if (keys.includes(intName)) {
+          emailField = intName;
+        }
+      }
+    }
+    if (!nameField) {
+      if (cleanDisp.includes('fullname') || cleanDisp.includes('contactname') || cleanDisp === 'name' || cleanDisp === 'leadowner') {
+        if (keys.includes(intName)) {
+          nameField = intName;
+        }
+      }
+    }
+  }
+
+  // 2. Direct internal key name matching (e.g. 'Email', 'Title', 'WorkEmail')
+  if (!emailField) {
+    emailField = keys.find((key) =>
+      emailCandidates.includes(key.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    ) || null;
+  }
+  if (!nameField) {
+    nameField = keys.find((key) =>
+      nameCandidates.includes(key.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    ) || null;
+  }
+
+  // 3. Value-based email detection: scan item field values across items for email pattern
+  if (!emailField) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const sampleItems = allItems.slice(0, 15);
+    const keyMatchCount = {};
+
+    for (const item of sampleItems) {
+      const f = item.fields || {};
+      for (const key of Object.keys(f)) {
+        if (key.startsWith('@') || key === 'id' || key === 'ContentType' || key === 'Attachments') continue;
+        const val = String(f[key] || '').trim();
+        if (emailRegex.test(val)) {
+          keyMatchCount[key] = (keyMatchCount[key] || 0) + 1;
+        }
+      }
+    }
+
+    let maxCount = 0;
+    for (const [key, count] of Object.entries(keyMatchCount)) {
+      if (count > maxCount) {
+        maxCount = count;
+        emailField = key;
+      }
+    }
+  }
+
+  // 4. Fallback for Name field
+  if (!nameField) {
+    if (firstFields.Title && typeof firstFields.Title === 'string' && firstFields.Title.trim()) {
+      nameField = 'Title';
+    } else {
+      for (const key of keys) {
+        if (key === emailField || key.startsWith('@') || key === 'id' || key === 'ContentType' || key.includes('Modified') || key.includes('Created')) continue;
+        const val = String(firstFields[key] || '').trim();
+        if (val && val.length >= 2 && val.length <= 60 && !val.includes('{') && !val.includes('http')) {
+          nameField = key;
+          break;
+        }
+      }
+    }
+  }
+
   return { nameField, emailField };
 }
 
@@ -107,6 +213,7 @@ async function getSharePointContacts(configId) {
   }
 
   const token = await getAccessToken(tenantId, clientId, clientSecret);
+  const columnMap = await fetchColumnMap(siteId, listId, token);
 
   const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
   let nextUrl = `${baseUrl}?expand=fields&$top=999`;
@@ -126,7 +233,7 @@ async function getSharePointContacts(configId) {
     return [];
   }
 
-  const { nameField, emailField } = resolveFieldNames(allItems[0]?.fields || {});
+  const { nameField, emailField } = resolveFieldNames(allItems, columnMap);
 
   if (!emailField) {
     const available = Object.keys(allItems[0]?.fields || {}).join(', ');
@@ -135,17 +242,33 @@ async function getSharePointContacts(configId) {
     );
   }
 
+  // Create a reverse column map (internalName -> displayName)
+  const reverseColumnMap = new Map();
+  for (const [dispName, intName] of columnMap.entries()) {
+    reverseColumnMap.set(intName, dispName);
+  }
+
   const contacts = allItems
     .map((item) => {
       const fields = item.fields || {};
-      const name_v = nameField ? String(fields[nameField] || '').trim() : '';
+      let name_v = nameField ? String(fields[nameField] || '').trim() : '';
+      if (!name_v && fields.Title) name_v = String(fields.Title).trim();
       const email = emailField ? String(fields[emailField] || '').trim().toLowerCase() : '';
       const modifiedAt = item.lastModifiedDateTime || fields.Modified || new Date().toISOString();
-      return { name: name_v, email, modifiedAt, itemId: item.id, rawFields: fields };
+
+      // Transform rawFields so internal names like field_0, field_1 are replaced by real SharePoint display names
+      const friendlyFields = {};
+      for (const [key, val] of Object.entries(fields)) {
+        if (key.startsWith('@') || key === 'id' || key === 'ContentType' || key === 'Attachments' || key.endsWith('LookupId')) continue;
+        const displayName = reverseColumnMap.get(key) || key;
+        friendlyFields[displayName] = val;
+      }
+
+      return { name: name_v, email, modifiedAt, itemId: item.id, rawFields: friendlyFields };
     })
     .filter((c) => c.email);
 
-  console.log(`[SharePoint] Fetched ${contacts.length} contacts from '${name}'`);
+  console.log(`[SharePoint] Fetched ${contacts.length} contacts from '${name}' using emailField '${emailField}' and nameField '${nameField}'`);
   return contacts;
 }
 
@@ -170,8 +293,15 @@ async function testConnection(configId) {
  * Discover field names in a SharePoint list (debug helper).
  */
 async function discoverFields(configId) {
-  const result = await testConnection(configId);
-  return result.fields;
+  const dbConfig = await loadConfig(configId);
+  const { tenantId, clientId, clientSecret, siteId, listId } = resolveCredentials(dbConfig);
+  const token = await getAccessToken(tenantId, clientId, clientSecret);
+  const columnMap = await fetchColumnMap(siteId, listId, token);
+  const conn = await testConnection(configId);
+  return {
+    rawFields: conn.fields,
+    columnMap: Object.fromEntries(columnMap)
+  };
 }
 
 // Cache of list IDs where we have verified or created the EmailSent column during this session

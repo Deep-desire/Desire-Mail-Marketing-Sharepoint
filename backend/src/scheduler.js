@@ -115,13 +115,13 @@ async function processCampaign(campaignId) {
       break;
     }
 
-    // 2. Fetch fresh campaign template (in case it was updated)
+    // 2. Fetch fresh campaign details
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       include: { template: true }
     });
 
-    if (!campaign || !campaign.template) {
+    if (!campaign || (!campaign.isAiGenerated && !campaign.template)) {
       console.error(`[Scheduler] Campaign or template not found for campaign ${campaignId}`);
       await prisma.campaign.update({
         where: { id: campaignId },
@@ -138,18 +138,75 @@ async function processCampaign(campaignId) {
         .update(recipient.email + 'desire-unsubscribe-salt')
         .digest('hex')
         .substring(0, 32);
+
       const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}?email=${encodeURIComponent(recipient.email)}`;
 
-      const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
-      const rendered = renderTemplate(
-        {
-          id: campaign.template.id,
-          subject: campaign.template.subject,
-          htmlBody: campaign.template.htmlBody,
-          plainTextBody: campaign.template.plainTextBody
-        },
-        variables
-      );
+      let renderedSubject = '';
+      let renderedHtml = '';
+      let renderedText = '';
+
+      if (campaign.isAiGenerated) {
+        // AI Draft Generation
+        const { generateRecipientDraft } = require('./ai');
+
+        if (recipient.aiSubject && recipient.aiBody) {
+          renderedSubject = recipient.aiSubject;
+          renderedHtml = recipient.aiBody;
+        } else {
+          // Construct rich contact data context including LinkedIn URL, Website, Company, Title, etc.
+          const contactContext = (recipient.rawFields && typeof recipient.rawFields === 'object' && Object.keys(recipient.rawFields).length > 0)
+            ? recipient.rawFields
+            : {
+                name: recipient.name,
+                email: recipient.email,
+                spItemId: recipient.spItemId,
+              };
+
+          try {
+            console.log(`[Scheduler AI Draft] Generating personalized email for ${recipient.email}...`);
+            const draft = await generateRecipientDraft({
+              masterPrompt: campaign.aiPrompt,
+              contactData: contactContext
+            });
+            renderedSubject = draft.subject;
+            renderedHtml = draft.htmlBody;
+
+            // Persist generated subject and HTML body on recipient record
+            await prisma.recipient.update({
+              where: { id: recipient.id },
+              data: {
+                aiSubject: renderedSubject,
+                aiBody: renderedHtml
+              }
+            });
+          } catch (aiErr) {
+            console.error(`[Scheduler AI Draft Error] ${aiErr.message}`);
+            renderedSubject = `Update for ${recipient.name}`;
+            renderedHtml = `<p>Hello ${recipient.name},</p><p>We wanted to reach out regarding our latest updates.</p>`;
+          }
+        }
+
+        // Append unsubscribe footer to AI generated body if not present
+        if (!renderedHtml.includes('unsubscribe')) {
+          renderedHtml += `<div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; text-align: center; font-size: 11px; color: #888;"><p>If you wish to stop receiving these emails, you can <a href="${unsubscribeLink}" style="color: #666; text-decoration: underline;">unsubscribe here</a>.</p></div>`;
+        }
+        renderedText = renderedSubject;
+      } else {
+        // Standard Template Rendering
+        const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
+        const rendered = renderTemplate(
+          {
+            id: campaign.template.id,
+            subject: campaign.template.subject,
+            htmlBody: campaign.template.htmlBody,
+            plainTextBody: campaign.template.plainTextBody
+          },
+          variables
+        );
+        renderedSubject = rendered.subject;
+        renderedHtml = rendered.html;
+        renderedText = rendered.text;
+      }
 
       let attempts = 0;
       const maxAttempts = 3;
@@ -160,9 +217,9 @@ async function processCampaign(campaignId) {
         try {
           await sendEmail({
             to: recipient.email,
-            subject: rendered.subject,
-            html: rendered.html,
-            text: rendered.text
+            subject: renderedSubject,
+            html: renderedHtml,
+            text: renderedText
           });
           success = true;
           break;

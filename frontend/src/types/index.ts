@@ -54,8 +54,11 @@ export interface Campaign {
   id: string;
   name: string;
   status: 'processing' | 'completed' | 'failed' | 'scheduled';
-  templateId: string;
+  templateId?: string | null;
   template?: Template;
+  isAiGenerated?: boolean;
+  aiPrompt?: string | null;
+  aiModel?: string | null;
   totalCount: number;
   sentCount: number;
   failedCount: number;
@@ -76,6 +79,8 @@ export interface Recipient {
   email: string;
   status: 'pending' | 'sent' | 'failed' | 'skipped';
   error: string | null;
+  aiSubject?: string | null;
+  aiBody?: string | null;
   sentAt: string | null;
   campaignId: string;
   createdAt: string;

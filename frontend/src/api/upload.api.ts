@@ -55,11 +55,18 @@ export const uploadApi = {
 
   createCampaign: (data: {
     name?: string;
-    templateId: string;
+    templateId?: string;
+    isAiGenerated?: boolean;
+    aiPrompt?: string;
     syncMode?: 'incremental' | 'full';
     configId?: string;
     contacts?: { name: string; email: string; itemId?: string | null }[];
+    scheduledAt?: string;
   }) => api.post<Campaign>('/campaigns', data),
+
+  /** AI Draft preview generation */
+  previewAiDraft: (masterPrompt: string, contactData: Record<string, any>) =>
+    api.post<{ subject: string; htmlBody: string }>('/ai/preview-draft', { masterPrompt, contactData }),
 
   deleteCampaign: (id: string) => api.delete(`/campaigns/${id}`),
 

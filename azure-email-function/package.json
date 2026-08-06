@@ -1,0 +1,22 @@
+{
+  "name": "azure-email-function",
+  "version": "1.0.0",
+  "description": "Azure Durable Functions microservice for email sending and campaign scheduling",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "func start",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@prisma/client": "^5.15.0",
+    "durable-functions": "^3.1.0",
+    "handlebars": "^4.7.8",
+    "nodemailer": "^6.9.13",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "azure-functions-core-tools": "^4.0.5900",
+    "prisma": "^5.15.0"
+  }
+}

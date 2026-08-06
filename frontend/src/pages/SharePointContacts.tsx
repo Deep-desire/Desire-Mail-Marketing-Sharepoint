@@ -5,7 +5,7 @@ import {
   RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
   CheckCircle, AlertCircle, XCircle, MinusCircle,
   Users, Mail, Send, History, Trash2, X, AlertTriangle,
-  Calendar, Layers, Search, SlidersHorizontal, Clock,
+  Calendar, Layers, Search, SlidersHorizontal, Clock, Sparkles, Wand2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/upload.api';
@@ -119,6 +119,46 @@ export default function SharePointContacts() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [campaignName, setCampaignName] = useState('');
   const [sending, setSending] = useState(false);
+
+  // ── AI Draft Generation state ──
+  const [draftMode, setDraftMode] = useState<'template' | 'ai'>('template');
+  const [aiPrompt, setAiPrompt] = useState('Draft a high-converting executive email introducing Desire InfoWeb (https://desireinfoweb.com) SharePoint modernization and enterprise AI services tailored specifically to their job role and organization.');
+  const [isAiPreviewModalOpen, setIsAiPreviewModalOpen] = useState(false);
+  const [generatingAiPreview, setGeneratingAiPreview] = useState(false);
+  const [aiPreviewResult, setAiPreviewResult] = useState<{ subject: string; htmlBody: string } | null>(null);
+  const [aiPreviewContactName, setAiPreviewContactName] = useState('');
+
+  const handleGenerateAiPreview = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error('Please enter instructions for the AI generator');
+      return;
+    }
+    const sampleContact = contacts.find(c => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)) || contacts[0];
+    if (!sampleContact) {
+      toast.error('No contact available for AI draft preview');
+      return;
+    }
+
+    const contactPayload = sampleContact.rawFields && Object.keys(sampleContact.rawFields).length > 0
+      ? sampleContact.rawFields
+      : { name: sampleContact.name, email: sampleContact.email };
+
+    setGeneratingAiPreview(true);
+    setAiPreviewContactName(sampleContact.name || sampleContact.email);
+    setIsAiPreviewModalOpen(true);
+    setAiPreviewResult(null);
+
+    try {
+      const res = await uploadApi.previewAiDraft(aiPrompt, contactPayload);
+      setAiPreviewResult(res.data);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to generate AI preview');
+      setIsAiPreviewModalOpen(false);
+    } finally {
+      setGeneratingAiPreview(false);
+    }
+  };
+
   // Helper to format date for datetime-local input (YYYY-MM-DDTHH:MM in local time)
   const getLocalDatetimeString = (dateObj: Date) => {
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -294,20 +334,26 @@ export default function SharePointContacts() {
       let nameFieldDetected = '';
       let emailFieldDetected = '';
       for (const col of allCols) {
-        const lowerCol = col.toLowerCase();
-        if (!nameFieldDetected && NAME_CANDIDATES.has(lowerCol)) {
+        const cleanCol = col.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!nameFieldDetected && (NAME_CANDIDATES.has(cleanCol) || cleanCol.includes('fullname') || cleanCol.includes('contactname'))) {
           nameFieldDetected = col;
         }
-        if (!emailFieldDetected && EMAIL_CANDIDATES.has(lowerCol)) {
+        if (!emailFieldDetected && (EMAIL_CANDIDATES.has(cleanCol) || cleanCol.includes('email') || cleanCol === 'mail')) {
           emailFieldDetected = col;
         }
       }
       // Fallback defaults
       if (!nameFieldDetected) {
-        nameFieldDetected = allCols.find(c => c.toLowerCase() === 'title' || c.toLowerCase() === 'name') || allCols[0] || '';
+        nameFieldDetected = allCols.find(c => {
+          const cl = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cl === 'title' || cl === 'name' || cl.includes('name');
+        }) || allCols[0] || '';
       }
       if (!emailFieldDetected) {
-        emailFieldDetected = allCols.find(c => c.toLowerCase() === 'email' || c.toLowerCase() === 'emailaddress') || allCols[0] || '';
+        emailFieldDetected = allCols.find(c => {
+          const cl = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cl.includes('email') || cl === 'mail';
+        }) || allCols[0] || '';
       }
       setMappedNameField(nameFieldDetected);
       setMappedEmailField(emailFieldDetected);
@@ -339,8 +385,12 @@ export default function SharePointContacts() {
 
   // ── Create Campaign & Send ──
   const handleStartCampaign = async () => {
-    if (!selectedTemplate) {
+    if (draftMode === 'template' && !selectedTemplate) {
       toast.error('Please select an email template');
+      return;
+    }
+    if (draftMode === 'ai' && !aiPrompt.trim()) {
+      toast.error('Please enter instructions for the AI generator');
       return;
     }
     if (selectedValidCount === 0) {
@@ -362,14 +412,16 @@ export default function SharePointContacts() {
     try {
       const res = await uploadApi.createCampaign({
         name: campaignName || `Campaign – ${new Date().toLocaleDateString()}`,
-        templateId: selectedTemplate,
+        templateId: draftMode === 'template' ? selectedTemplate : undefined,
+        isAiGenerated: draftMode === 'ai',
+        aiPrompt: draftMode === 'ai' ? aiPrompt.trim() : undefined,
         syncMode: syncMode,
         configId: selectedConfigId || undefined,
         contacts: contacts
           .filter(c => c.itemId && selectedItemIds.has(c.itemId))
-          .map(c => ({ name: c.name, email: c.email, itemId: c.itemId })),
+          .map(c => ({ name: c.name, email: c.email, itemId: c.itemId, rawFields: c.rawFields })),
         scheduledAt: isScheduled ? new Date(scheduledAt).toISOString() : undefined,
-      } as any); // cast to any temporarily if TS types compilation delays
+      } as any);
 
       const campaignId = res.data.id;
       if (isScheduled) {
@@ -1270,30 +1322,115 @@ export default function SharePointContacts() {
                 />
               </div>
 
-              {/* Selected Template (Read-Only in Step 2) */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-500">Email Template</label>
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm flex items-center justify-between">
-                    <span className="font-semibold text-brand-600">
-                      {selectedTemplateObj?.name || 'No template selected'}
-                    </span>
-                  </div>
-                  {selectedTemplate && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIframeHeight('400px');
-                        setIsPreviewModalOpen(true);
-                      }}
-                      className="px-3 rounded-xl bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-600 text-gray-700 transition-all flex items-center justify-center shrink-0 shadow-sm"
-                      title="Preview Email Format"
-                    >
-                      <Eye className="w-4.5 h-4.5" />
-                    </button>
-                  )}
+              {/* Draft Generation Mode Selector */}
+              <div className="space-y-2 border-t border-b border-gray-100 py-3">
+                <label className="text-xs font-semibold text-gray-700 flex items-center justify-between">
+                  <span>Email Content Strategy</span>
+                  <span className="text-[10px] text-brand-600 font-normal flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> Azure OpenAI Powered
+                  </span>
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDraftMode('template')}
+                    className={`p-2.5 rounded-xl border text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all ${
+                      draftMode === 'template'
+                        ? 'bg-brand-50 border-brand-500 text-brand-700 font-semibold shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Static Template</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDraftMode('ai')}
+                    className={`p-2.5 rounded-xl border text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all ${
+                      draftMode === 'ai'
+                        ? 'bg-purple-50 border-purple-500 text-purple-700 font-semibold shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                    }`}
+                  >
+                    <Wand2 className="w-4 h-4 text-purple-600" />
+                    <span>AI Generate Draft</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Template vs AI Options */}
+              {draftMode === 'template' ? (
+                /* Selected Template (Read-Only in Step 2) */
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-500">Email Template</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm flex items-center justify-between">
+                      <span className="font-semibold text-brand-600">
+                        {selectedTemplateObj?.name || 'No template selected'}
+                      </span>
+                    </div>
+                    {selectedTemplate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIframeHeight('400px');
+                          setIsPreviewModalOpen(true);
+                        }}
+                        className="px-3 rounded-xl bg-white border border-gray-300 hover:bg-brand-50 hover:text-brand-600 text-gray-700 transition-all flex items-center justify-center shrink-0 shadow-sm"
+                        title="Preview Email Format"
+                      >
+                        <Eye className="w-4.5 h-4.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* AI Generation Parameters */
+                <div className="space-y-3 bg-purple-50/50 border border-purple-100 rounded-xl p-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-purple-900 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      Master AI Campaign Prompt
+                    </label>
+                    <span className="text-[10px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
+                      GPT-4o
+                    </span>
+                  </div>
+
+                  <textarea
+                    rows={4}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Enter campaign intent or instructions for AI (e.g. Write a personalized reach-out introducing our AI & SharePoint services tailored to their job role and company details)..."
+                    className="w-full bg-white border border-purple-200 rounded-xl p-3 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors shadow-sm resize-none"
+                  />
+
+                  <p className="text-[10px] text-purple-700 leading-normal">
+                    AI will analyze all SharePoint row columns for each recipient (Name, Title, Company, Notes, etc.) and generate a tailored, professional email draft.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiPreview}
+                    disabled={generatingAiPreview}
+                    className="w-full py-2 px-3 bg-white hover:bg-purple-100 border border-purple-300 text-purple-800 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {generatingAiPreview ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                        Generating AI Sample...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-3.5 h-3.5 text-purple-600" />
+                        Preview Sample AI Draft
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* Scheduling Options */}
               <div className="space-y-3 border-t border-gray-100 pt-3">
@@ -1687,6 +1824,112 @@ export default function SharePointContacts() {
                 className="flex-1 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold transition-all shadow-sm"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* AI Draft Preview Modal */}
+      {isAiPreviewModalOpen && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-3xl w-full p-6 space-y-4 relative border border-purple-200 bg-white shadow-2xl max-h-[90vh] flex flex-col">
+            <button
+              onClick={() => setIsAiPreviewModalOpen(false)}
+              className="absolute right-4 top-4 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 text-purple-900 pb-2 border-b border-purple-100">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <div>
+                <h3 className="text-base font-bold">Azure OpenAI Generated Draft Preview</h3>
+                <p className="text-xs text-purple-700 font-normal">
+                  Synthesized for sample recipient: <span className="font-semibold">{aiPreviewContactName}</span>
+                </p>
+              </div>
+            </div>
+
+            {generatingAiPreview ? (
+              <div className="py-16 flex flex-col items-center justify-center space-y-3">
+                <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-semibold text-purple-900">Reviewing contact attributes & composing personalized HTML draft...</p>
+                <p className="text-xs text-gray-500">Using Azure OpenAI GPT-4o model</p>
+              </div>
+            ) : aiPreviewResult ? (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                {/* Contact Attributes & Web Context Banner */}
+                {(() => {
+                  const sample = contacts.find(c => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)) || contacts[0];
+                  const raw = sample?.rawFields || {};
+                  const linkedinUrl = Object.entries(raw).find(([k, v]) => k.toLowerCase().includes('linkedin') && typeof v === 'string' && v.startsWith('http'))?.[1];
+                  const websiteUrl = Object.entries(raw).find(([k, v]) => (k.toLowerCase().includes('website') || k.toLowerCase().includes('site') || k.toLowerCase().includes('domain')) && typeof v === 'string' && v.startsWith('http'))?.[1];
+                  const companyName = Object.entries(raw).find(([k, v]) => k.toLowerCase().includes('company') || k.toLowerCase().includes('org'))?.[1] || '';
+                  const titleName = Object.entries(raw).find(([k, v]) => k.toLowerCase().includes('title') || k.toLowerCase().includes('role') || k.toLowerCase().includes('designation'))?.[1] || '';
+
+                  return (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs space-y-2">
+                      <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                        <span className="font-semibold text-gray-800 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-brand-600" />
+                          Target Recipient Row Context: {sample?.name} ({sample?.email})
+                        </span>
+                        <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-purple-600" /> Auto Web Intelligence Scraper Active
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-600">
+                        {titleName && <div><span className="font-medium text-gray-500">Title/Role:</span> {String(titleName)}</div>}
+                        {companyName && <div><span className="font-medium text-gray-500">Company:</span> {String(companyName)}</div>}
+                        {linkedinUrl && (
+                          <div className="col-span-2 flex items-center gap-1 text-blue-600 font-medium">
+                            <span className="text-gray-500 font-medium">LinkedIn Profile:</span>
+                            <a href={String(linkedinUrl)} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-800 break-all">
+                              {String(linkedinUrl)}
+                            </a>
+                          </div>
+                        )}
+                        {websiteUrl && (
+                          <div className="col-span-2 flex items-center gap-1 text-purple-600 font-medium">
+                            <span className="text-gray-500 font-medium">Company Website:</span>
+                            <a href={String(websiteUrl)} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-800 break-all">
+                              {String(websiteUrl)}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3 space-y-1">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-purple-600">Generated AI Subject Line</span>
+                  <p className="text-sm font-bold text-gray-900">{aiPreviewResult.subject}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500">Rendered Personalized HTML Email Draft</span>
+                  <div className="border border-gray-200 rounded-xl bg-gray-50 p-3 min-h-[300px]">
+                    <iframe
+                      srcDoc={aiPreviewResult.htmlBody}
+                      title="AI Draft Preview"
+                      className="w-full min-h-[350px] border-0 rounded-lg bg-white shadow-inner"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-red-500 py-8 text-center">Failed to load preview.</p>
+            )}
+
+            <div className="pt-2 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setIsAiPreviewModalOpen(false)}
+                className="btn-primary py-2 px-5 text-xs rounded-xl"
+              >
+                Close Preview
               </button>
             </div>
           </div>

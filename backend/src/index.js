@@ -1,7 +1,44 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const axios = require('axios');
 const rateLimit = require('express-rate-limit');
+
+async function triggerCampaignOrchestration(campaignId) {
+  const azureUrl = process.env.AZURE_FUNCTION_URL;
+  const secretKey = process.env.AZURE_FUNCTION_SECRET_KEY;
+
+  if (azureUrl) {
+    try {
+      console.log(`[Vercel API] Triggering Azure Durable Function for campaign ${campaignId}...`);
+      await axios.post(
+        `${azureUrl.replace(/\/+$/, '')}/api/orchestration/start-campaign`,
+        { campaignId },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-azure-secret': secretKey || '',
+          },
+          timeout: 10000,
+        }
+      );
+      console.log(`[Vercel API] Azure Durable Function successfully triggered for campaign ${campaignId}`);
+      return;
+    } catch (err) {
+      console.error(`[Vercel API] Failed to trigger Azure Durable Function: ${err.message}`);
+    }
+  }
+
+  // Fallback to local scheduler if Azure Function URL is not configured
+  try {
+    const { triggerCampaignProcessing } = require('./scheduler');
+    triggerCampaignProcessing(campaignId).catch(err => {
+      console.error(`[Local Scheduler Send Error] ${err.message}`);
+    });
+  } catch (err) {
+    console.error(`[Scheduler Local Fallback Error] ${err.message}`);
+  }
+}
 const { prisma } = require('./prisma');
 const { generateToken, comparePassword, authenticate } = require('./auth');
 const { sendEmail, getIndividualDelay } = require('./email');
@@ -476,6 +513,22 @@ apiRouter.get('/campaigns/stats/dashboard', catchAsync(async (req, res) => {
 }));
 
 // ─────────────────────────────────────────────
+// AI DRAFT GENERATION
+// ─────────────────────────────────────────────
+const { generateRecipientDraft } = require('./ai');
+
+// POST /ai/preview-draft
+apiRouter.post('/ai/preview-draft', catchAsync(async (req, res) => {
+  await authenticate(req);
+  const { masterPrompt, contactData } = req.body;
+  if (!contactData) {
+    return res.status(400).json({ message: 'contactData is required for preview' });
+  }
+  const draft = await generateRecipientDraft({ masterPrompt, contactData });
+  return res.status(200).json(draft);
+}));
+
+// ─────────────────────────────────────────────
 // CAMPAIGNS  (replaces "uploads")
 // ─────────────────────────────────────────────
 
@@ -492,30 +545,52 @@ apiRouter.get('/campaigns', catchAsync(async (req, res) => {
 // POST /campaigns  — create a new campaign from SharePoint contacts
 apiRouter.post('/campaigns', catchAsync(async (req, res) => {
   await authenticate(req);
-  const { name, templateId, syncMode = 'full', configId, contacts, scheduledAt } = req.body;
-  if (!templateId) return res.status(400).json({ message: 'templateId is required' });
+  const { name, templateId, isAiGenerated, aiPrompt, syncMode = 'full', configId, contacts, scheduledAt } = req.body;
 
-  const template = await prisma.template.findUnique({ where: { id: templateId } });
-  if (!template) return res.status(404).json({ message: 'Template not found' });
+  if (!isAiGenerated && !templateId) {
+    return res.status(400).json({ message: 'templateId is required when AI draft generation is disabled' });
+  }
+
+  if (isAiGenerated && !aiPrompt) {
+    return res.status(400).json({ message: 'aiPrompt is required when AI draft generation is enabled' });
+  }
+
+  let template = null;
+  let finalTemplateId = templateId || null;
+  if (templateId) {
+    template = await prisma.template.findUnique({ where: { id: templateId } });
+    if (!template && !isAiGenerated) return res.status(404).json({ message: 'Template not found' });
+  } else if (isAiGenerated) {
+    let defaultTemplate = await prisma.template.findFirst();
+    if (!defaultTemplate) {
+      defaultTemplate = await prisma.template.create({
+        data: {
+          name: 'AI Dynamic Draft Template',
+          subject: 'AI Generated Personalized Email',
+          htmlBody: '<p>Personalized AI Email</p>',
+          plainTextBody: 'Personalized AI Email',
+        },
+      });
+    }
+    finalTemplateId = defaultTemplate.id;
+  }
 
   // Use the provided contacts list if available; otherwise fetch live from SharePoint.
-  // IMPORTANT: when contacts come from the frontend (already-previewed list), we still
-  // honour syncMode and configId so incremental filtering is applied correctly.
   let reconciliation;
   if (contacts !== undefined) {
     if (!Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({ message: 'No contacts selected for the campaign' });
     }
     // contacts already have itemId embedded from the preview step
-    reconciliation = await reconcileContacts(contacts, syncMode, configId || null, templateId || null);
+    reconciliation = await reconcileContacts(contacts, syncMode, configId || null, finalTemplateId || null);
   } else {
     if (!configId) return res.status(400).json({ message: 'configId is required when contacts are not provided' });
     const allContacts = await getSharePointContacts(configId);
-    reconciliation = await reconcileContacts(allContacts, syncMode, configId, templateId || null);
+    reconciliation = await reconcileContacts(allContacts, syncMode, configId, finalTemplateId || null);
   }
 
   const recipientsToCreate = reconciliation.contacts
-    .filter(c => c.status !== 'duplicate') // skip duplicates — don't even create a recipient row for them
+    .filter(c => c.status !== 'duplicate') // skip duplicates
     .map(c => {
       const statusMap = {
         valid: 'pending',
@@ -528,9 +603,8 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
         status: statusMap[c.status] || 'pending',
         error: c.reason,
         spItemId: c.itemId || null,
-        // Store the SP modifiedAt snapshot so incremental sync can compare against it
-        // on the NEXT run, without being confused by our own EmailSent write-back.
         spModifiedAt: c.modifiedAt ? new Date(c.modifiedAt) : null,
+        rawFields: c.rawFields || null,
       };
     });
 
@@ -549,7 +623,10 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
   const campaign = await prisma.campaign.create({
     data: {
       name: name || `Campaign – ${new Date().toLocaleDateString()}`,
-      templateId,
+      templateId: finalTemplateId,
+      isAiGenerated: Boolean(isAiGenerated),
+      aiPrompt: isAiGenerated ? aiPrompt : null,
+      aiModel: isAiGenerated ? (process.env.AZURE_OPENAI_CHAT_DEPLOYMENT || 'gpt-4o') : null,
       status: campaignStatus,
       scheduledAt: campaignScheduledAt,
       configId: configId || null,
@@ -566,8 +643,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
 
   // Asynchronously trigger campaign sending immediately if status is processing
   if (campaign.status === 'processing') {
-    const { triggerCampaignProcessing } = require('./scheduler');
-    triggerCampaignProcessing(campaign.id).catch(err => {
+    triggerCampaignOrchestration(campaign.id).catch(err => {
       console.error(`[Background Campaign Send Error] ${err.message}`);
     });
   }
@@ -660,11 +736,10 @@ apiRouter.put('/campaigns/:id', catchAsync(async (req, res) => {
     include: { template: true, config: true }
   });
 
-  // If status transitioned to processing, start sending immediately in background
-  if (updatedCampaign.status === 'processing') {
-    const { triggerCampaignProcessing } = require('./scheduler');
-    triggerCampaignProcessing(updatedCampaign.id).catch(err => {
-      console.error(`[Background Reschedule Campaign Send Error] ${err.message}`);
+  // If status transitioned to processing or scheduled, trigger orchestration
+  if (updatedCampaign.status === 'processing' || updatedCampaign.status === 'scheduled') {
+    triggerCampaignOrchestration(updatedCampaign.id).catch(err => {
+      console.error(`[Background Campaign Orchestration Error] ${err.message}`);
     });
   }
 
