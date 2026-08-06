@@ -10,26 +10,38 @@ app.timer('scheduledCampaignPoller', {
     const now = new Date();
 
     try {
-      const scheduledCampaigns = await prisma.campaign.findMany({
+      const campaignsToResume = await prisma.campaign.findMany({
         where: {
-          status: 'scheduled',
-          scheduledAt: { lte: now },
+          OR: [
+            { status: 'scheduled', scheduledAt: { lte: now } },
+            { status: 'processing', pendingCount: { gt: 0 } },
+          ],
         },
       });
 
-      for (const campaign of scheduledCampaigns) {
+      for (const campaign of campaignsToResume) {
         const instanceId = `campaign-${campaign.id}`;
+
+        // getStatus throws (HTTP 404) when no instance exists yet for this id —
+        // that is the normal case for a campaign that has never been started,
+        // so it must NOT be treated as a reason to skip starting it.
+        let existingStatus = null;
         try {
-          const existingStatus = await client.getStatus(instanceId);
-          if (!existingStatus || existingStatus.runtimeStatus === 'Completed' || existingStatus.runtimeStatus === 'Failed') {
+          existingStatus = await client.getStatus(instanceId);
+        } catch (err) {
+          existingStatus = null;
+        }
+
+        if (!existingStatus || existingStatus.runtimeStatus === 'Completed' || existingStatus.runtimeStatus === 'Failed') {
+          try {
             await client.startNew('emailCampaignOrchestrator', {
               instanceId,
               input: { campaignId: campaign.id },
             });
-            console.log(`[Cron Poller] Triggered orchestration for scheduled campaign ${campaign.id}`);
+            console.log(`[Cron Poller] Triggered orchestration for campaign ${campaign.id}`);
+          } catch (err) {
+            console.error(`[Cron Poller] Error starting orchestration for campaign ${campaign.id}:`, err);
           }
-        } catch (err) {
-          console.error(`[Cron Poller] Error checking status for campaign ${campaign.id}:`, err);
         }
       }
     } catch (err) {
