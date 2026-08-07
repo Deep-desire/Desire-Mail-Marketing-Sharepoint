@@ -9,6 +9,15 @@ async function triggerCampaignOrchestration(campaignId) {
   const secretKey = process.env.AZURE_FUNCTION_SECRET_KEY;
 
   if (azureUrl) {
+    // Azure Function is configured, so it — and its own scheduledCampaignPoller
+    // safety net — is the single source of truth for sending this campaign.
+    // Do NOT fall back to the local scheduler on a request failure/timeout: the
+    // axios call can time out client-side on a slow cold start even though the
+    // orchestration actually started successfully server-side, and running the
+    // local scheduler concurrently would send duplicate emails to recipients.
+    // If this call genuinely fails, the campaign stays 'processing'/'scheduled'
+    // and the Azure poller (which checks orchestration instance status before
+    // starting a new one) will pick it up within its next 5-minute tick.
     try {
       console.log(`[Vercel API] Triggering Azure Durable Function for campaign ${campaignId}...`);
       await axios.post(
@@ -19,17 +28,17 @@ async function triggerCampaignOrchestration(campaignId) {
             'Content-Type': 'application/json',
             'x-azure-secret': secretKey || '',
           },
-          timeout: 10000,
+          timeout: 25000,
         }
       );
       console.log(`[Vercel API] Azure Durable Function successfully triggered for campaign ${campaignId}`);
-      return;
     } catch (err) {
-      console.error(`[Vercel API] Failed to trigger Azure Durable Function: ${err.message}`);
+      console.error(`[Vercel API] Failed to trigger Azure Durable Function (will rely on the poller to pick this up): ${err.message}`);
     }
+    return;
   }
 
-  // Fallback to local scheduler if Azure Function URL is not configured
+  // No Azure Function configured at all — use the local scheduler as the only sender.
   try {
     const { triggerCampaignProcessing } = require('./scheduler');
     triggerCampaignProcessing(campaignId).catch(err => {
