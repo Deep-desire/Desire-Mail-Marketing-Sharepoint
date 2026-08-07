@@ -822,10 +822,47 @@ apiRouter.post('/campaigns/:id/send-batch', batchLimiter, catchAsync(async (req,
     const unsubscribeLink = `${frontendUrl}/unsubscribe/${token}?email=${encodeURIComponent(recipient.email)}`;
 
     const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
-    const rendered = renderTemplate(
-      { id: template.id, subject: template.subject, htmlBody: template.htmlBody, plainTextBody: template.plainTextBody },
-      variables
-    );
+
+    let rendered;
+    if (campaign.isAiGenerated) {
+      let aiSubject = recipient.aiSubject;
+      let aiBody = recipient.aiBody;
+
+      if (!aiSubject || !aiBody) {
+        try {
+          const contactData = { name: recipient.name, email: recipient.email, ...(recipient.rawFields || {}) };
+          const draft = await generateRecipientDraft({ masterPrompt: campaign.aiPrompt, contactData });
+          aiSubject = draft.subject;
+          aiBody = draft.htmlBody;
+          await prisma.recipient.update({
+            where: { id: recipient.id },
+            data: { aiSubject, aiBody },
+          });
+        } catch (err) {
+          console.error(`[AI Draft Generation Error] ${recipient.email}: ${err.message}`);
+        }
+      }
+
+      if (aiSubject && aiBody) {
+        // AI-generated content is already fully personalized (no {{handlebars}} placeholders),
+        // so it's used as-is rather than through the shared Handlebars template cache — that
+        // cache is keyed by a stable template id and would otherwise reuse one recipient's
+        // compiled (and therefore personalized) content for every other recipient.
+        const unsubscribeFooter = `<p style="margin-top:24px;font-size:12px;color:#94a3b8;">Don't want to receive these emails anymore? <a href="${unsubscribeLink}">Unsubscribe</a>.</p>`;
+        rendered = {
+          subject: aiSubject,
+          html: `${aiBody}${unsubscribeFooter}`,
+          text: undefined,
+        };
+      }
+    }
+
+    if (!rendered) {
+      rendered = renderTemplate(
+        { id: template.id, subject: template.subject, htmlBody: template.htmlBody, plainTextBody: template.plainTextBody },
+        variables
+      );
+    }
 
     let attempts = 0;
     const maxAttempts = 3;

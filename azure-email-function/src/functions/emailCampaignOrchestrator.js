@@ -39,6 +39,8 @@ df.app.orchestration('emailCampaignOrchestrator', function* (context) {
     const batchResults = yield context.df.callActivity('sendBatchActivity', {
       recipients: currentData.recipients,
       template: currentData.template,
+      isAiGenerated: currentData.isAiGenerated,
+      aiPrompt: currentData.aiPrompt,
     });
 
     yield context.df.callActivity('updateCampaignStatsActivity', { campaignId, batchResults });

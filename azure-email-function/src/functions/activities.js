@@ -2,6 +2,7 @@ const df = require('durable-functions');
 const { prisma } = require('../lib/prisma');
 const { sendEmail } = require('../lib/emailSender');
 const { renderTemplate } = require('../lib/templates');
+const { generateRecipientDraft } = require('../lib/aiDraft');
 
 // Activity 1: Get campaign metadata & batch of pending recipients
 df.app.activity('getCampaignDataActivity', {
@@ -31,28 +32,44 @@ const EMAIL_DELAY_MAX_MS = (parseInt(process.env.EMAIL_DELAY_MAX_SEC, 10) || 30)
 // Activity 2: Send batch of emails
 df.app.activity('sendBatchActivity', {
   handler: async (input) => {
-    const { recipients, template } = input;
+    const { recipients, template, isAiGenerated, aiPrompt } = input;
     const results = [];
 
     for (let i = 0; i < recipients.length; i++) {
       const recipient = recipients[i];
       try {
-        const subject = recipient.aiSubject || (template ? template.subject : 'No Subject');
-        const htmlContent = template ? template.htmlBody : (recipient.aiBody || '');
-        const textContent = template ? template.plainTextBody : null;
+        const unsubscribeLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe?email=${encodeURIComponent(recipient.email)}`;
+        const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
 
-        const htmlBody = renderTemplate(htmlContent, {
-          name: recipient.name,
-          email: recipient.email,
-          unsubscribeLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe?email=${encodeURIComponent(recipient.email)}`,
-        });
-        const textBody = textContent
-          ? renderTemplate(textContent, {
-              name: recipient.name,
-              email: recipient.email,
-              unsubscribeLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe?email=${encodeURIComponent(recipient.email)}`,
-            })
-          : undefined;
+        let subject;
+        let htmlBody;
+        let textBody;
+
+        if (isAiGenerated) {
+          let aiSubject = recipient.aiSubject;
+          let aiBody = recipient.aiBody;
+
+          if (!aiSubject || !aiBody) {
+            const contactData = { name: recipient.name, email: recipient.email, ...(recipient.rawFields || {}) };
+            const draft = await generateRecipientDraft({ masterPrompt: aiPrompt, contactData });
+            aiSubject = draft.subject;
+            aiBody = draft.htmlBody;
+            await prisma.recipient.update({
+              where: { id: recipient.id },
+              data: { aiSubject, aiBody },
+            });
+          }
+
+          // AI-generated content is already fully personalized (no {{handlebars}} placeholders
+          // beyond what's baked in), so it's used as-is with a manually appended unsubscribe footer.
+          subject = aiSubject;
+          htmlBody = `${aiBody}<p style="margin-top:24px;font-size:12px;color:#94a3b8;">Don't want to receive these emails anymore? <a href="${unsubscribeLink}">Unsubscribe</a>.</p>`;
+          textBody = undefined;
+        } else {
+          subject = template ? template.subject : 'No Subject';
+          htmlBody = renderTemplate(template ? template.htmlBody : '', variables);
+          textBody = template && template.plainTextBody ? renderTemplate(template.plainTextBody, variables) : undefined;
+        }
 
         await sendEmail({
           to: recipient.email,

@@ -1,102 +1,78 @@
-const { EmailClient } = require('@azure/communication-email');
-const nodemailer = require('nodemailer');
+const GRAPH_TENANT_ID = process.env.GRAPH_TENANT_ID;
+const GRAPH_CLIENT_ID = process.env.GRAPH_CLIENT_ID;
+const GRAPH_CLIENT_SECRET = process.env.GRAPH_CLIENT_SECRET;
+const GRAPH_SENDER_EMAIL = process.env.GRAPH_SENDER_EMAIL;
 
-const AZURE_FROM_EMAIL = process.env.AZURE_FROM_EMAIL || 'donotreply@your-domain.com';
-const AZURE_CONNECTION_STRING = process.env.AZURE_CONNECTION_STRING || '';
+let cachedToken = null;
+let cachedTokenExpiresAt = 0;
 
-const SMTP_HOST = process.env.SMTP_HOST || '';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || '';
-
-// Initialize Azure Communication Email Client
-const isAzureConfigured = 
-  AZURE_CONNECTION_STRING && 
-  AZURE_CONNECTION_STRING.startsWith('endpoint=') && 
-  AZURE_CONNECTION_STRING.trim() !== '';
-
-const emailClient = isAzureConfigured ? new EmailClient(AZURE_CONNECTION_STRING) : null;
-
-// Initialize NodeMailer SMTP Transporter with connection pooling
-const smtpTransporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: false,
-  pool: true,           // Reuse TCP connections across emails
-  maxConnections: 5,    // 5 concurrent SMTP connections
-  maxMessages: 100,     // Recycle connection after 100 messages
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-});
-
-async function sendViaAzure(options) {
-  if (!emailClient) {
-    throw new Error('Azure Email client is not initialized');
+// Client-credentials (app-only) OAuth2 token for Microsoft Graph, cached until
+// shortly before expiry so we don't request a new one on every send.
+async function getAccessToken() {
+  if (cachedToken && Date.now() < cachedTokenExpiresAt) {
+    return cachedToken;
   }
 
-  const emailMessage = {
-    senderAddress: AZURE_FROM_EMAIL,
-    content: {
-      subject: options.subject,
-      plainText: options.text,
-      html: options.html,
-    },
-    recipients: {
-      to: [{ address: options.to }],
-    },
-  };
+  const response = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: GRAPH_CLIENT_ID,
+      client_secret: GRAPH_CLIENT_SECRET,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
+    }),
+  });
 
-  const poller = await emailClient.beginSend(emailMessage);
-  const result = await poller.pollUntilDone();
-  return result.id || 'unknown';
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Failed to acquire Graph access token (${response.status}): ${errBody}`);
+  }
+
+  const data = await response.json();
+  cachedToken = data.access_token;
+  cachedTokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
+  return cachedToken;
 }
 
-async function sendViaSMTP(options) {
-  const fromEmail = SMTP_USER || AZURE_FROM_EMAIL;
-  const fromField = SMTP_FROM_NAME ? `"${SMTP_FROM_NAME}" <${fromEmail}>` : fromEmail;
-  const info = await smtpTransporter.sendMail({
-    from: fromField,
-    to: options.to,
+async function sendViaGraph(options) {
+  const token = await getAccessToken();
+
+  const message = {
     subject: options.subject,
-    html: options.html,
-    text: options.text,
+    body: options.html
+      ? { contentType: 'HTML', content: options.html }
+      : { contentType: 'Text', content: options.text || '' },
+    toRecipients: [{ emailAddress: { address: options.to } }],
+  };
+
+  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(GRAPH_SENDER_EMAIL)}/sendMail`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message, saveToSentItems: true }),
   });
-  return info.messageId || 'unknown';
+
+  if (!response.ok) {
+    const errBody = await response.text();
+    throw new Error(`Graph sendMail failed (${response.status}): ${errBody}`);
+  }
+
+  return 'graph-sent';
 }
 
 async function sendEmail(options) {
-  if (isAzureConfigured) {
-    try {
-      const messageId = await sendViaAzure(options);
-      console.log(`Email sent via Azure to ${options.to}: ${messageId}`);
-      return { messageId, provider: 'azure' };
-    } catch (azureError) {
-      console.warn(
-        `Azure Email failed for ${options.to}: ${azureError.message}. Falling back to SMTP.`,
-      );
-    }
-  }
-
-  try {
-    const messageId = await sendViaSMTP(options);
-    console.log(`Email sent via SMTP to ${options.to}: ${messageId}`);
-    return { messageId, provider: 'smtp' };
-  } catch (smtpError) {
-    console.error(
-      `SMTP failed for ${options.to}: ${smtpError.message}`,
-    );
-    throw new Error(
-      `All email providers failed. SMTP Error: ${smtpError.message}`,
-    );
-  }
+  const messageId = await sendViaGraph(options);
+  console.log(`Email sent via Graph to ${options.to}`);
+  return { messageId, provider: 'graph' };
 }
+
 /**
  * Calculates a random individual email delay between configured minimum and maximum limits (in milliseconds).
  * Defaults to a random duration between 10 and 15 seconds.
- * 
+ *
  * @returns {number} Delay in milliseconds
  */
 function getIndividualDelay() {
@@ -108,4 +84,3 @@ function getIndividualDelay() {
 }
 
 module.exports = { sendEmail, getIndividualDelay };
-
