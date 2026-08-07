@@ -1,24 +1,26 @@
-const GRAPH_TENANT_ID = process.env.GRAPH_TENANT_ID;
-const GRAPH_CLIENT_ID = process.env.GRAPH_CLIENT_ID;
-const GRAPH_CLIENT_SECRET = process.env.GRAPH_CLIENT_SECRET;
-const GRAPH_SENDER_EMAIL = process.env.GRAPH_SENDER_EMAIL;
-
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 
 // Client-credentials (app-only) OAuth2 token for Microsoft Graph, cached until
 // shortly before expiry so we don't request a new one on every send.
+// Env vars are read here (at call time), not at module load time — a warm
+// serverless instance whose module cache predates an env var update would
+// otherwise keep reusing a stale/undefined value for its whole lifetime.
 async function getAccessToken() {
   if (cachedToken && Date.now() < cachedTokenExpiresAt) {
     return cachedToken;
   }
 
-  const response = await fetch(`https://login.microsoftonline.com/${GRAPH_TENANT_ID}/oauth2/v2.0/token`, {
+  const tenantId = process.env.GRAPH_TENANT_ID;
+  const clientId = process.env.GRAPH_CLIENT_ID;
+  const clientSecret = process.env.GRAPH_CLIENT_SECRET;
+
+  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: GRAPH_CLIENT_ID,
-      client_secret: GRAPH_CLIENT_SECRET,
+      client_id: clientId,
+      client_secret: clientSecret,
       scope: 'https://graph.microsoft.com/.default',
       grant_type: 'client_credentials',
     }),
@@ -37,6 +39,7 @@ async function getAccessToken() {
 
 async function sendViaGraph(options) {
   const token = await getAccessToken();
+  const senderEmail = process.env.GRAPH_SENDER_EMAIL;
 
   const message = {
     subject: options.subject,
@@ -46,7 +49,7 @@ async function sendViaGraph(options) {
     toRecipients: [{ emailAddress: { address: options.to } }],
   };
 
-  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(GRAPH_SENDER_EMAIL)}/sendMail`, {
+  const response = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/sendMail`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
