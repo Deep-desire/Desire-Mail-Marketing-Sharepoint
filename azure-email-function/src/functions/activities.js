@@ -21,32 +21,55 @@ df.app.activity('getCampaignDataActivity', {
   },
 });
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Random delay between individual sends within a batch, to avoid looking like
+// a burst of bulk mail to receiving mail servers.
+const EMAIL_DELAY_MIN_MS = (parseInt(process.env.EMAIL_DELAY_MIN_SEC, 10) || 20) * 1000;
+const EMAIL_DELAY_MAX_MS = (parseInt(process.env.EMAIL_DELAY_MAX_SEC, 10) || 30) * 1000;
+
 // Activity 2: Send batch of emails
 df.app.activity('sendBatchActivity', {
   handler: async (input) => {
     const { recipients, template } = input;
     const results = [];
 
-    for (const recipient of recipients) {
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i];
       try {
         const subject = recipient.aiSubject || (template ? template.subject : 'No Subject');
         const htmlContent = template ? template.htmlBody : (recipient.aiBody || '');
-        
+        const textContent = template ? template.plainTextBody : null;
+
         const htmlBody = renderTemplate(htmlContent, {
           name: recipient.name,
           email: recipient.email,
           unsubscribeLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe?email=${encodeURIComponent(recipient.email)}`,
         });
+        const textBody = textContent
+          ? renderTemplate(textContent, {
+              name: recipient.name,
+              email: recipient.email,
+              unsubscribeLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe?email=${encodeURIComponent(recipient.email)}`,
+            })
+          : undefined;
 
         await sendEmail({
           to: recipient.email,
           subject,
           html: htmlBody,
+          text: textBody,
         });
 
         results.push({ id: recipient.id, status: 'sent', sentAt: new Date() });
       } catch (err) {
         results.push({ id: recipient.id, status: 'failed', error: err.message });
+      }
+
+      // Randomized delay between individual sends (not after the last one in the batch).
+      if (i < recipients.length - 1) {
+        const delay = EMAIL_DELAY_MIN_MS + Math.random() * (EMAIL_DELAY_MAX_MS - EMAIL_DELAY_MIN_MS);
+        await sleep(delay);
       }
     }
     return results;

@@ -24,10 +24,13 @@ df.app.orchestration('emailCampaignOrchestrator', function* (context) {
   yield context.df.callActivity('finalizeCampaignActivity', { campaignId, status: 'processing' });
 
   // Step 4: Batch sending loop
+  const BATCH_SIZE = parseInt(process.env.BATCH_SIZE, 10) || 5;
+  const BATCH_DELAY_MS = (parseInt(process.env.BATCH_DELAY_SEC, 10) || 15) * 1000;
+
   let hasPending = true;
   while (hasPending) {
-    const currentData = yield context.df.callActivity('getCampaignDataActivity', { campaignId, batchSize: 50 });
-    
+    const currentData = yield context.df.callActivity('getCampaignDataActivity', { campaignId, batchSize: BATCH_SIZE });
+
     if (!currentData || !currentData.recipients || currentData.recipients.length === 0) {
       hasPending = false;
       break;
@@ -40,8 +43,8 @@ df.app.orchestration('emailCampaignOrchestrator', function* (context) {
 
     yield context.df.callActivity('updateCampaignStatsActivity', { campaignId, batchResults });
 
-    // Optional short delay between batches for rate-limiting
-    const nextTick = new Date(context.df.currentUtcDateTime.getTime() + 1000);
+    // Delay between batches for rate-limiting / spam-avoidance
+    const nextTick = new Date(context.df.currentUtcDateTime.getTime() + BATCH_DELAY_MS);
     yield context.df.createTimer(nextTick);
   }
 
