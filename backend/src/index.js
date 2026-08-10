@@ -651,7 +651,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
       templateId: finalTemplateId,
       isAiGenerated: Boolean(isAiGenerated),
       aiPrompt: isAiGenerated ? aiPrompt : null,
-      aiModel: isAiGenerated ? (process.env.AZURE_OPENAI_CHAT_DEPLOYMENT || 'gpt-4o') : null,
+      aiModel: isAiGenerated ? 'AI' : null,
       status: campaignStatus,
       scheduledAt: campaignScheduledAt,
       configId: configId || null,
@@ -986,7 +986,13 @@ apiRouter.post('/campaigns/:id/finalize', catchAsync(async (req, res) => {
 // GET /templates
 apiRouter.get('/templates', catchAsync(async (req, res) => {
   await authenticate(req);
-  const templates = await prisma.template.findMany({ orderBy: { createdAt: 'desc' } });
+  // Exclude the internal AI-mode placeholder row (see getAiPlaceholderTemplateId) — it exists
+  // purely to satisfy Campaign.templateId's FK requirement for AI-generated campaigns and was
+  // never meant to be a user-facing, selectable template.
+  const templates = await prisma.template.findMany({
+    where: { name: { not: 'AI Dynamic Draft Template' } },
+    orderBy: { createdAt: 'desc' },
+  });
   return res.status(200).json(templates);
 }));
 

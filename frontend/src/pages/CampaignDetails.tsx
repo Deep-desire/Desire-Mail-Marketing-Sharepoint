@@ -36,6 +36,7 @@ export default function CampaignDetails() {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelingCampaign, setCancelingCampaign] = useState(false);
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
@@ -174,6 +175,7 @@ export default function CampaignDetails() {
       .then(([campaignRes, recipientsRes]) => {
         setCampaign(campaignRes.data);
         setRecipients(recipientsRes.data.recipients);
+        setLastRefreshedAt(new Date());
       })
       .catch(() => {
         toast.error('Failed to refresh campaign details');
@@ -190,6 +192,7 @@ export default function CampaignDetails() {
       .then(([campaignRes, recipientsRes]) => {
         setCampaign(campaignRes.data);
         setRecipients(recipientsRes.data.recipients);
+        setLastRefreshedAt(new Date());
       })
       .catch(() => {
         toast.error('Failed to load campaign details');
@@ -210,10 +213,19 @@ export default function CampaignDetails() {
 
     const interval = setInterval(() => {
       fetchDetails();
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [id, campaign?.status]);
+
+  // Ticks once a second while a campaign is sending, purely so the "updated Xs ago"
+  // label below re-renders and visibly counts up between poll ticks.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!campaign || campaign.status !== 'processing') return;
+    const tick = setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => clearInterval(tick);
+  }, [campaign?.status]);
 
   const handleEditRecipient = async () => {
     if (!editRecipient || !id) return;
@@ -380,11 +392,17 @@ export default function CampaignDetails() {
       {/* Processing / Sending indicator */}
       {campaign.status === 'processing' && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-            <p className="text-sm text-blue-800 font-semibold">
-              Campaign sending is in progress on the server... {campaign.sentCount + campaign.failedCount} / {campaign.totalCount} emails processed ({progressPercent}%).
-            </p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+              <p className="text-sm text-blue-800 font-semibold">
+                Campaign sending is in progress on the server... {campaign.sentCount + campaign.failedCount} / {campaign.totalCount} emails processed ({progressPercent}%).
+              </p>
+            </div>
+            <span className="text-[10px] text-blue-500 font-medium flex items-center gap-1 shrink-0 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse-soft" />
+              Live · updated {lastRefreshedAt ? Math.max(0, Math.round((Date.now() - lastRefreshedAt.getTime()) / 1000)) : 0}s ago
+            </span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200 shadow-inner">
             <div
@@ -518,7 +536,7 @@ export default function CampaignDetails() {
                   <span className="text-gray-800 font-medium">
                     {campaign.isAiGenerated ? (
                       <span className="text-purple-700 font-bold inline-flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-purple-600" /> AI Draft ({campaign.aiModel || 'GPT-4o'})
+                        <Sparkles className="w-3 h-3 text-purple-600" /> AI Draft
                       </span>
                     ) : (
                       campaign.template?.name || 'Standard Template'

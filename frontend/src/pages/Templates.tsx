@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, Loader2, FileText } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Plus, Trash2, Loader2, FileText, AlertTriangle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { templateApi } from '../api/template.api';
 import { Template } from '../types';
@@ -8,6 +9,7 @@ import { Template } from '../types';
 export default function Templates() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingTemplate, setDeletingTemplate] = useState<Template | null>(null);
 
   const fetchTemplates = () => {
     templateApi
@@ -18,11 +20,12 @@ export default function Templates() {
 
   useEffect(fetchTemplates, []);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete template "${name}"?`)) return;
+  const handleDelete = async () => {
+    if (!deletingTemplate) return;
     try {
-      await templateApi.delete(id);
+      await templateApi.delete(deletingTemplate.id);
       toast.success('Template deleted');
+      setDeletingTemplate(null);
       fetchTemplates();
     } catch {
       toast.error('Failed to delete');
@@ -65,7 +68,7 @@ export default function Templates() {
                   <FileText className="w-5 h-5 text-brand-600" />
                 </div>
                 <button
-                  onClick={() => handleDelete(t.id, t.name)}
+                  onClick={() => setDeletingTemplate(t)}
                   className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-600 transition-all border border-transparent hover:border-red-200"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -87,6 +90,39 @@ export default function Templates() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deletingTemplate && createPortal(
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-card max-w-md w-full p-6 space-y-4 border border-red-200 bg-white shadow-2xl">
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                Delete Template?
+              </h3>
+              <button onClick={() => setDeletingTemplate(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500">
+              Are you sure you want to delete{' '}
+              <strong className="text-gray-900 font-semibold">"{deletingTemplate.name}"</strong>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setDeletingTemplate(null)} className="btn-secondary text-xs px-4 py-2">
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs px-4 py-2 font-semibold transition-all shadow-sm"
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

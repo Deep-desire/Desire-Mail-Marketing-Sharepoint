@@ -58,47 +58,16 @@ OFFICIAL DESIRE INFOWEB PRODUCT SUITE / ADD-INS (https://desireinfoweb.com/produ
 - Corporate Calendar & Milestone Celebration App
 - Audit System & Quick Links Portal
 
-WEB RESEARCH INSTRUCTIONS:
-- If the recipient row includes a company website, LinkedIn profile, or any other URL, use the web_search tool to look up that URL and gather real, current information about the company or person (industry focus, recent news, products, leadership) before writing the email.
-- Only reference facts you actually found via web_search or that are present in the row data. Never fabricate research findings.
+WEB RESEARCH INSTRUCTIONS (CRITICAL — this is the most important part of your job):
+- If the recipient row includes a company website, LinkedIn profile, or any other URL, you MUST use the web_search tool to look up that URL and gather real, current information about the company (what they actually do, their specific products/services, recent news, their industry positioning, notable clients or achievements) before writing the email.
+- The email's substance — the opening observation, the reasons this prospect specifically should care, and the "why now" — MUST be built from what you actually found via web_search and from the row data (Title, Company Name, Industry, Remark/Notes fields). Do NOT write a generic pitch and drop in one research detail as an afterthought — the research findings should visibly shape most of the email's middle content.
+- Only state facts you actually found via web_search or that are present in the row data. Never fabricate research findings, statistics, or claims about the company. If web_search returns nothing useful, say so implicitly by writing a shorter, more general (but still non-templated) email grounded only in the row data — do not invent details to fill space.
+- Every email must read as genuinely different from the last one you wrote for a different recipient — different opening line, different specific observations, different phrasing throughout the body — because the underlying research and row data are different. Two emails for two different companies should never share the same sentence structure or bullet wording.
 
-MANDATORY EMAIL WRITING STYLE & PARAGRAPH FLOW (MUST MATCH EXACTLY):
-Your generated htmlBody MUST strictly follow this exact structural flow, tone, and HTML layout:
-
-<div style="font-family: Arial, Helvetica, sans-serif; max-width: 620px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; color: #334155; line-height: 1.6;">
-
-  <p style="font-size: 16px; font-weight: bold; margin-bottom: 18px; color: #0f172a;">Dear [Recipient First Name or Name],</p>
-
-  <p style="font-size: 14px; margin-bottom: 16px; color: #334155;">
-    As the [Recipient Title/Role] of [Company Name], a forward-thinking organization in the [Industry] industry, I wanted to personally reach out to introduce a transformative opportunity for your team. With your leadership and [Company Name]’s commitment to innovation, we believe our AI-powered SharePoint modernization services can help you unlock new efficiencies and drive unparalleled collaboration across your organization.
-  </p>
-
-  <p style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #0f172a;">Here’s how we can support [Company Name]’s growth:</p>
-
-  <ul style="padding-left: 20px; margin-bottom: 24px; font-size: 14px; color: #334155;">
-    <li style="margin-bottom: 10px;"><strong>AI-Driven Insights:</strong> Leverage advanced AI and Copilot Studio to streamline workflows and enhance decision-making.</li>
-    <li style="margin-bottom: 10px;"><strong>Seamless SharePoint Modernization:</strong> Upgrade your existing SharePoint infrastructure to improve usability, security, and scalability.</li>
-    <li style="margin-bottom: 10px;"><strong>Tailored Solutions:</strong> Customized strategies designed to align with [Company Name]’s unique goals[and team size of X if available].</li>
-  </ul>
-
-  <p style="font-size: 14px; margin-bottom: 16px; color: #334155;">
-    As a Certified Microsoft Solutions Partner, Desire InfoWeb brings deep expertise and proven methodologies to ensure a smooth and impactful transformation for your organization.
-  </p>
-
-  <p style="font-size: 14px; margin-bottom: 16px; color: #334155;">
-    [Specific tailored observation based on recipient's Remark, Notes, or real web research findings, e.g. "I noticed that a demo has already been scheduled..." or "I noticed your company's focus on scalable software platforms..." If client website is present, add: "In the meantime, feel free to explore more on your site: <a href='[Client Website]'>[Domain]</a>."]
-  </p>
-
-  <p style="font-size: 14px; margin-bottom: 24px; color: #334155;">
-    Would you be open to a brief follow-up conversation to discuss your specific needs and how we can tailor our solutions for [Company Name]?
-  </p>
-
-  <div style="text-align: center; margin: 28px 0;">
-    <a href="https://desireinfoweb.com" style="background-color: #0066cc; color: #ffffff; font-size: 15px; font-weight: bold; padding: 12px 28px; border-radius: 8px; text-decoration: none; display: inline-block; box-shadow: 0 2px 6px rgba(0,102,204,0.3);">
-      Schedule a Follow-Up
-    </a>
-  </div>
-
+FIXED ELEMENTS (these, and only these, stay consistent across every email):
+- The overall HTML container styling: <div style="font-family: Arial, Helvetica, sans-serif; max-width: 620px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; color: #334155; line-height: 1.6;">...</div>
+- A single CTA button before the signature: <div style="text-align: center; margin: 28px 0;"><a href="https://desireinfoweb.com" style="background-color: #0066cc; color: #ffffff; font-size: 15px; font-weight: bold; padding: 12px 28px; border-radius: 8px; text-decoration: none; display: inline-block; box-shadow: 0 2px 6px rgba(0,102,204,0.3);">Schedule a Follow-Up</a></div> (vary the button label to fit the email's specific ask if appropriate, e.g. "Book a 15-Minute Call" — it does not have to say exactly "Schedule a Follow-Up" every time).
+- The signature block, verbatim:
   <div style="margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 13px; color: #475569;">
     <p style="margin: 0 0 6px 0; font-size: 14px; color: #0f172a;">Looking forward to connecting soon!</p>
     <p style="margin: 0 0 12px 0;">Best regards,</p>
@@ -110,10 +79,16 @@ Your generated htmlBody MUST strictly follow this exact structural flow, tone, a
       Website: <a href="https://desireinfoweb.com" style="color: #2563eb; font-weight: bold; text-decoration: none;">https://desireinfoweb.com</a>
     </p>
   </div>
-</div>
+
+EVERYTHING ELSE IS YOURS TO WRITE FRESH EACH TIME, based on real research and row data:
+- The greeting and opening paragraph: reference the recipient's actual role, company, and (if you found it via web_search) something specific and true about their business — not a generic "forward-thinking organization" line.
+- The body: 2-4 short paragraphs and/or a bullet list connecting what Desire InfoWeb actually offers (from the services/products list above) to what you learned this specific company does or needs. Only mention services genuinely relevant to what you found — do not list all five service categories every time.
+- Keep paragraph styling similar to the fixed elements (font-size: 14px, color: #334155, reasonable margins) for visual consistency, but the wording, structure, number of paragraphs, and whether you use a bullet list at all should vary based on what fits this recipient's research best.
+- Close with a specific, relevant call to action tied to what was discussed, then the CTA button and signature above.
 
 CRITICAL CONSTRAINTS:
 - ABSOLUTELY NO SENDER PLACEHOLDERS: NEVER leave [Your Name] or [Your Job Title] in the signature. The signature MUST always be finalized as Meet Modi, Senior Technology Consultant | Desire InfoWeb.
+- NEVER leave bracketed placeholders like [Company Name] or [Industry] in the final output — always resolve them to the real values from the row data or web research.
 - Output MUST be a raw valid JSON object with keys "subject" and "htmlBody".`;
 
   const userPrompt = `SENDER BRANDING:
@@ -153,6 +128,9 @@ Draft the personalized email from Meet Modi (meet@desireinfoweb.in) at Desire In
           ],
           temperature: azureTemp,
           tools: urlFields.length > 0 ? [{ type: 'web_search' }] : undefined,
+          // Force the model to actually call web_search (not just have it offered) whenever
+          // a URL was found in the row, so research always happens before the draft is written.
+          tool_choice: urlFields.length > 0 ? 'required' : undefined,
           text: {
             format: {
               type: 'json_schema',
@@ -181,6 +159,7 @@ Draft the personalized email from Meet Modi (meet@desireinfoweb.in) at Desire In
           ],
           temperature: 0.2,
           tools: urlFields.length > 0 ? [{ type: 'web_search' }] : undefined,
+          tool_choice: urlFields.length > 0 ? 'required' : undefined,
           text: {
             format: {
               type: 'json_schema',

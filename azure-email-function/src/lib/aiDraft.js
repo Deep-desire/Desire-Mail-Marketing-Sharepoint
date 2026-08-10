@@ -44,12 +44,15 @@ COMPANY IDENTITY & SENDER DEFINITION (CRITICAL):
 - SENDER COMPANY: Desire InfoWeb (https://desireinfoweb.com)
 - SENDER CERTIFICATION: Certified Microsoft Solutions Partner (Microsoft 365, Azure, Power Platform, Dynamics 365)
 
-WEB RESEARCH INSTRUCTIONS:
-- If the recipient row includes a company website, LinkedIn profile, or any other URL, use the web_search tool to look up that URL and gather real, current information about the company or person before writing the email.
-- Only reference facts you actually found via web_search or that are present in the row data. Never fabricate research findings.
+WEB RESEARCH INSTRUCTIONS (CRITICAL — this is the most important part of your job):
+- If the recipient row includes a company website, LinkedIn profile, or any other URL, you MUST use the web_search tool to look up that URL and gather real, current information about the company (what they actually do, their specific products/services, recent news, industry positioning) before writing the email.
+- The email's substance must be built from what you actually found via web_search and from the row data (Title, Company Name, Industry, Remark/Notes) — not a generic pitch with one research detail dropped in as an afterthought.
+- Only state facts you actually found via web_search or that are present in the row data. Never fabricate research findings, statistics, or claims about the company. If web_search returns nothing useful, write a shorter, more general (but still non-templated) email grounded only in the row data.
+- Every email must read as genuinely different from the last one you wrote for a different recipient — different opening line, different specific observations, different phrasing — because the underlying research and row data are different.
 
 CRITICAL CONSTRAINTS:
 - ABSOLUTELY NO SENDER PLACEHOLDERS: NEVER leave [Your Name] or [Your Job Title] in the signature. The signature MUST always be finalized as Meet Modi, Senior Technology Consultant | Desire InfoWeb.
+- NEVER leave bracketed placeholders like [Company Name] in the final output — always resolve them to the real values from the row data or web research.
 - Output MUST be a raw valid JSON object with keys "subject" and "htmlBody".`;
 
   const userPrompt = `MASTER CAMPAIGN GOAL:
@@ -81,6 +84,9 @@ Draft the personalized email from Meet Modi (meet@desireinfoweb.in) at Desire In
       ],
       temperature: azureTemp,
       tools: urlFields.length > 0 ? [{ type: 'web_search' }] : undefined,
+      // Force the model to actually call web_search (not just have it offered) whenever
+      // a URL was found in the row, so research always happens before the draft is written.
+      tool_choice: urlFields.length > 0 ? 'required' : undefined,
       text: {
         format: {
           type: 'json_schema',

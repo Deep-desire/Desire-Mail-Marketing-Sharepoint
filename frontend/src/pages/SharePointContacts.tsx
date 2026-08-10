@@ -815,7 +815,7 @@ export default function SharePointContacts() {
                       Master AI Campaign Prompt
                     </label>
                     <span className="text-[10px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
-                      GPT-4o
+                      AI
                     </span>
                   </div>
 
@@ -1855,7 +1855,7 @@ export default function SharePointContacts() {
               <div className="py-16 flex flex-col items-center justify-center space-y-3">
                 <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm font-semibold text-purple-900">Reviewing contact attributes & composing personalized HTML draft...</p>
-                <p className="text-xs text-gray-500">Using Azure OpenAI GPT-4o model</p>
+                <p className="text-xs text-gray-500">Using AI</p>
               </div>
             ) : aiPreviewResult ? (
               <div className="space-y-4 overflow-y-auto pr-1 flex-1">
@@ -1875,9 +1875,11 @@ export default function SharePointContacts() {
                           <Users className="w-3.5 h-3.5 text-brand-600" />
                           Target Recipient Row Context: {sample?.name} ({sample?.email})
                         </span>
-                        <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-purple-600" /> Auto Web Intelligence Scraper Active
-                        </span>
+                        {(linkedinUrl || websiteUrl) && (
+                          <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-purple-600" /> AI Web Research Used
+                          </span>
+                        )}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-600">
                         {titleName && <div><span className="font-medium text-gray-500">Title/Role:</span> {String(titleName)}</div>}
