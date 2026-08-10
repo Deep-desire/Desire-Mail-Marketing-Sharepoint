@@ -1,5 +1,5 @@
 import logo from '../Images/logo.png';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { MailX, CheckCircle, Loader2, Mail } from 'lucide-react';
 import api from '../api/axios';
@@ -13,16 +13,10 @@ export default function Unsubscribe() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
-  // Auto-trigger unsubscribe if email is provided in the query string
-  useEffect(() => {
-    if (initialEmail && token) {
-      const timer = setTimeout(() => {
-        handleUnsubscribeDirectly(initialEmail);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [initialEmail, token]);
-
+  // Email is pre-filled from the link's query string, but unsubscribing only
+  // happens when the user explicitly clicks the button below — never automatically
+  // just from opening the link (avoids accidental unsubscribes from link previews,
+  // email-client prefetching, or security scanners following the URL).
   const handleUnsubscribeDirectly = async (emailToUnsub: string) => {
     if (!emailToUnsub || !token) return;
     setStatus('loading');
