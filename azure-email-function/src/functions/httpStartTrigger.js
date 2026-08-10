@@ -28,6 +28,21 @@ app.http('startCampaignOrchestrator', {
     }
 
     const instanceId = `campaign-${campaignId}`;
+
+    // Guard against starting a second orchestration instance for a campaign that's
+    // already running (e.g. a duplicate/retried trigger from the backend racing the
+    // scheduledCampaignPoller) — mirrors the check already done in cronPollerTrigger.js.
+    let existingStatus = null;
+    try {
+      existingStatus = await client.getStatus(instanceId);
+    } catch (err) {
+      existingStatus = null;
+    }
+
+    if (existingStatus && existingStatus.runtimeStatus !== 'Completed' && existingStatus.runtimeStatus !== 'Failed' && existingStatus.runtimeStatus !== 'Terminated') {
+      return client.createCheckStatusResponse(request, instanceId);
+    }
+
     await client.startNew('emailCampaignOrchestrator', {
       instanceId,
       input: { campaignId },

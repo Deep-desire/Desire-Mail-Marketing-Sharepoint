@@ -228,6 +228,26 @@ apiRouter.get('/auth/me', catchAsync(async (req, res) => {
 // SHAREPOINT CONTACTS
 // ─────────────────────────────────────────────
 
+// --- Helper: Get (or create) the shared placeholder template row used to scope
+// incremental-sync dedupe history for AI Generate Draft campaigns, since AI mode
+// has no real templateId of its own. All AI campaigns/syncs reuse this same row's
+// id, giving AI mode its own dedupe bucket — separate from any predefined template
+// — mirroring exactly how a real template scopes incremental sync for that mode.
+async function getAiPlaceholderTemplateId() {
+  let placeholder = await prisma.template.findFirst({ where: { name: 'AI Dynamic Draft Template' } });
+  if (!placeholder) {
+    placeholder = await prisma.template.create({
+      data: {
+        name: 'AI Dynamic Draft Template',
+        subject: 'AI Generated Personalized Email',
+        htmlBody: '<p>Personalized AI Email</p>',
+        plainTextBody: 'Personalized AI Email',
+      },
+    });
+  }
+  return placeholder.id;
+}
+
 // --- Helper: Reconcile live SharePoint contacts with database logs ---
 // configId: optional — when provided, incremental mode only checks sends from THIS list's campaigns.
 // This is critical: a contact sent via "Demo List" must still appear as NEW in "Lead List".
@@ -484,12 +504,19 @@ apiRouter.post('/sharepoint/configs/:id/test', catchAsync(async (req, res) => {
  */
 apiRouter.get('/sharepoint/contacts', catchAsync(async (req, res) => {
   await authenticate(req);
-  const { mode = 'full', configId, templateId } = req.query;
+  const { mode = 'full', configId, templateId, isAiGenerated } = req.query;
   if (!configId) return res.status(400).json({ message: 'configId query parameter is required' });
+
+  // AI Generate Draft mode has no real templateId — resolve it to the shared AI
+  // placeholder template id so incremental sync scopes dedupe history to "already
+  // sent via AI on this list", the same way a real template scopes predefined mode.
+  const effectiveTemplateId = (isAiGenerated === 'true' || isAiGenerated === '1')
+    ? await getAiPlaceholderTemplateId()
+    : (templateId || null);
 
   const allContacts = await getSharePointContacts(configId);
   // Pass configId and templateId so incremental mode scopes history to THIS list and template
-  const result = await reconcileContacts(allContacts, mode, configId, templateId || null);
+  const result = await reconcileContacts(allContacts, mode, configId, effectiveTemplateId);
 
   return res.status(200).json(result);
 }));
@@ -570,18 +597,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
     template = await prisma.template.findUnique({ where: { id: templateId } });
     if (!template && !isAiGenerated) return res.status(404).json({ message: 'Template not found' });
   } else if (isAiGenerated) {
-    let defaultTemplate = await prisma.template.findFirst();
-    if (!defaultTemplate) {
-      defaultTemplate = await prisma.template.create({
-        data: {
-          name: 'AI Dynamic Draft Template',
-          subject: 'AI Generated Personalized Email',
-          htmlBody: '<p>Personalized AI Email</p>',
-          plainTextBody: 'Personalized AI Email',
-        },
-      });
-    }
-    finalTemplateId = defaultTemplate.id;
+    finalTemplateId = await getAiPlaceholderTemplateId();
   }
 
   // Use the provided contacts list if available; otherwise fetch live from SharePoint.
@@ -808,8 +824,26 @@ apiRouter.post('/campaigns/:id/send-batch', batchLimiter, catchAsync(async (req,
   const template = await prisma.template.findUnique({ where: { id: campaign.templateId } });
   if (!template) return res.status(404).json({ message: 'Template not found' });
 
-  const recipients = await prisma.recipient.findMany({
+  // Atomically claim these recipients (pending -> sending) so a concurrent/duplicate
+  // trigger for the same campaign can't select and re-send the same rows: only rows
+  // still 'pending' at the moment of this update are claimed, and only those are
+  // fetched below to actually process.
+  const candidateIds = await prisma.recipient.findMany({
     where: { id: { in: recipientIds }, campaignId: id, status: 'pending' },
+    select: { id: true },
+  });
+  if (candidateIds.length === 0) {
+    return res.status(400).json({ message: 'No pending recipients found for the specified IDs' });
+  }
+  const claim = await prisma.recipient.updateMany({
+    where: { id: { in: candidateIds.map((c) => c.id) }, status: 'pending' },
+    data: { status: 'sending' },
+  });
+  if (claim.count === 0) {
+    return res.status(400).json({ message: 'No pending recipients found for the specified IDs' });
+  }
+  const recipients = await prisma.recipient.findMany({
+    where: { id: { in: candidateIds.map((c) => c.id) }, status: 'sending' },
   });
 
   if (recipients.length === 0) {
@@ -1176,21 +1210,24 @@ apiRouter.delete('/recipients/:id', catchAsync(async (req, res) => {
     // Delete the recipient
     await tx.recipient.delete({ where: { id } });
 
-    // Decrement counters on the campaign
+    // Decrement counters on the campaign. 'sending' is a transient in-flight state
+    // (claimed but not yet resolved to sent/failed) — it counts toward pendingCount
+    // the same as 'pending' does.
     const statusFieldMap = {
       sent: 'sentCount',
       failed: 'failedCount',
       pending: 'pendingCount',
+      sending: 'pendingCount',
       skipped: 'skippedCount',
     };
     const counterField = statusFieldMap[recipient.status];
-    const isTotalCountRecipient = recipient.status === 'pending' || recipient.status === 'sent' || recipient.status === 'failed';
+    const isTotalCountRecipient = recipient.status === 'pending' || recipient.status === 'sending' || recipient.status === 'sent' || recipient.status === 'failed';
 
     await tx.campaign.update({
       where: { id: recipient.campaignId },
       data: {
         totalCount: isTotalCountRecipient ? { decrement: 1 } : undefined,
-        [counterField]: { decrement: 1 },
+        ...(counterField ? { [counterField]: { decrement: 1 } } : {}),
       },
     });
   });

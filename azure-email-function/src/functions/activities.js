@@ -4,21 +4,43 @@ const { sendEmail } = require('../lib/emailSender');
 const { renderTemplate } = require('../lib/templates');
 const { generateRecipientDraft } = require('../lib/aiDraft');
 
-// Activity 1: Get campaign metadata & batch of pending recipients
+// Activity 1: Get campaign metadata & batch of pending recipients.
+// Atomically claims the batch (pending -> sending) before returning it, so a
+// concurrent/duplicate orchestration run (or an activity replay/retry) for the
+// same campaign can't select and re-send the same recipient rows.
 df.app.activity('getCampaignDataActivity', {
   handler: async (input) => {
     const { campaignId, batchSize = 50 } = input;
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      include: {
-        template: true,
-        recipients: {
-          where: { status: 'pending' },
-          take: batchSize,
-        },
-      },
+      include: { template: true },
     });
-    return campaign;
+    if (!campaign) return null;
+
+    const candidates = await prisma.recipient.findMany({
+      where: { campaignId, status: 'pending' },
+      take: batchSize,
+      select: { id: true },
+    });
+
+    if (candidates.length === 0) {
+      return { ...campaign, recipients: [] };
+    }
+
+    const claim = await prisma.recipient.updateMany({
+      where: { id: { in: candidates.map((c) => c.id) }, status: 'pending' },
+      data: { status: 'sending' },
+    });
+
+    if (claim.count === 0) {
+      return { ...campaign, recipients: [] };
+    }
+
+    const recipients = await prisma.recipient.findMany({
+      where: { id: { in: candidates.map((c) => c.id) }, status: 'sending' },
+    });
+
+    return { ...campaign, recipients };
   },
 });
 

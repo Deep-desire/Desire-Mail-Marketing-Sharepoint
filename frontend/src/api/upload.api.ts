@@ -42,9 +42,10 @@ export const uploadApi = {
 
   // ── SharePoint Contacts ─────────────────────────────────────────────────
   /** Fetch & categorise all contacts live from a specific SharePoint list */
-  getSharePointContacts: (configId: string, mode: 'incremental' | 'full' = 'full', templateId?: string) => {
+  getSharePointContacts: (configId: string, mode: 'incremental' | 'full' = 'full', templateId?: string, isAiGenerated?: boolean) => {
     let url = `/sharepoint/contacts?configId=${configId}&mode=${mode}`;
     if (templateId) url += `&templateId=${templateId}`;
+    if (isAiGenerated) url += `&isAiGenerated=true`;
     return api.get<SPContactsResponse>(url);
   },
 

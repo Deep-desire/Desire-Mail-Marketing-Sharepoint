@@ -77,7 +77,7 @@ export interface Recipient {
   id: string;
   name: string;
   email: string;
-  status: 'pending' | 'sent' | 'failed' | 'skipped';
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
   error: string | null;
   aiSubject?: string | null;
   aiBody?: string | null;

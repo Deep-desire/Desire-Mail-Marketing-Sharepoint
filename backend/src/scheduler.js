@@ -104,10 +104,32 @@ async function processCampaign(campaignId) {
 
   while (true) {
     const batchSize = parseInt(process.env.BATCH_SIZE || '5', 10);
-    // 1. Fetch next batch of pending recipients
-    const recipients = await prisma.recipient.findMany({
+    // 1. Fetch next batch of pending recipients, then atomically claim them
+    // (pending -> sending) so a concurrent/duplicate trigger for the same
+    // campaign (e.g. an overlapping Azure orchestration run) can't select
+    // and re-send the same rows.
+    const candidates = await prisma.recipient.findMany({
       where: { campaignId, status: 'pending' },
       take: batchSize,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (candidates.length === 0) {
+      break;
+    }
+
+    const claim = await prisma.recipient.updateMany({
+      where: { id: { in: candidates.map((c) => c.id) }, status: 'pending' },
+      data: { status: 'sending' },
+    });
+
+    if (claim.count === 0) {
+      break;
+    }
+
+    const recipients = await prisma.recipient.findMany({
+      where: { id: { in: candidates.map((c) => c.id) }, status: 'sending' },
       orderBy: { createdAt: 'asc' }
     });
 

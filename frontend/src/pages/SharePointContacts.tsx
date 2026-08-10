@@ -297,14 +297,18 @@ export default function SharePointContacts() {
       toast.error('Please select a SharePoint list first');
       return;
     }
-    if (!selectedTemplate) {
+    if (draftMode === 'template' && !selectedTemplate) {
       toast.error('Please select an email template first');
+      return;
+    }
+    if (draftMode === 'ai' && !aiPrompt.trim()) {
+      toast.error('Please enter AI generation instructions first');
       return;
     }
     setSyncing(true);
     setContacts([]);
     try {
-      const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode, selectedTemplate);
+      const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode, draftMode === 'template' ? selectedTemplate : undefined, draftMode === 'ai');
       const syncedContacts = res.data.contacts || [];
 
       // Track unsubscribed email list locally for inline edits validation
@@ -381,7 +385,7 @@ export default function SharePointContacts() {
     } finally {
       setSyncing(false);
     }
-  }, [syncMode, selectedConfigId, selectedTemplate, spConfigs]);
+  }, [syncMode, selectedConfigId, selectedTemplate, spConfigs, draftMode, aiPrompt]);
 
   // ── Create Campaign & Send ──
   const handleStartCampaign = async () => {
@@ -702,24 +706,48 @@ export default function SharePointContacts() {
                   </div>
                 </div>
 
-                {/* Email Template Selector */}
+                {/* Email Content Source: Predefined Template vs AI Generate Draft */}
                 <div className="flex flex-col gap-1.5 flex-1 sm:flex-none">
-                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Email Template</label>
-                  <div className="relative w-full sm:w-44">
-                    <select
-                      id="sp-template-select"
-                      value={selectedTemplate}
-                      onChange={(e) => { setSelectedTemplate(e.target.value); setContacts([]); }}
-                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
+                  <label className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Email Content Source</label>
+                  <div className="grid grid-cols-2 gap-1.5 w-full sm:w-56">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftMode('template');
+                        setContacts([]);
+                        setAvailableColumns([]);
+                        setSelectedColumns([]);
+                        setMappedNameField('');
+                        setMappedEmailField('');
+                      }}
+                      className={`h-[36px] px-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                        draftMode === 'template'
+                          ? 'bg-brand-50 border-brand-500 text-brand-700 shadow-sm'
+                          : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
-                      <option value="">Select a template…</option>
-                      {templates.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </div>
+                      <Mail className="w-3.5 h-3.5" />
+                      Predefined
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftMode('ai');
+                        setContacts([]);
+                        setAvailableColumns([]);
+                        setSelectedColumns([]);
+                        setMappedNameField('');
+                        setMappedEmailField('');
+                      }}
+                      className={`h-[36px] px-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                        draftMode === 'ai'
+                          ? 'bg-purple-50 border-purple-500 text-purple-700 shadow-sm'
+                          : 'bg-white border-gray-300 text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                      }`}
+                    >
+                      <Wand2 className="w-3.5 h-3.5 text-purple-600" />
+                      AI Generate
+                    </button>
                   </div>
                 </div>
 
@@ -748,13 +776,62 @@ export default function SharePointContacts() {
                 <button
                   id="sync-sharepoint-btn"
                   onClick={handleSync}
-                  disabled={syncing || !selectedConfigId || !selectedTemplate}
+                  disabled={syncing || !selectedConfigId || (draftMode === 'template' ? !selectedTemplate : !aiPrompt.trim())}
                   className="w-full lg:w-auto bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 h-[36px] px-5 rounded-xl shadow-sm active:scale-98 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                   {syncing ? 'Syncing...' : 'Sync from SharePoint'}
                 </button>
               </div>
+            </div>
+
+            {/* Content source detail: Predefined Template picker or AI prompt */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              {draftMode === 'template' ? (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="sp-template-select" className="text-[10px] font-bold text-gray-500 tracking-wider uppercase whitespace-nowrap">Email Template</label>
+                  <div className="relative w-full sm:w-72">
+                    <select
+                      id="sp-template-select"
+                      value={selectedTemplate}
+                      onChange={(e) => { setSelectedTemplate(e.target.value); setContacts([]); }}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 pr-8 text-gray-900 text-xs font-semibold focus:outline-none focus:border-brand-500 transition-all appearance-none cursor-pointer h-[36px] shadow-sm"
+                    >
+                      <option value="">Select a template…</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 bg-purple-50/50 border border-purple-100 rounded-xl p-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-purple-900 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      Master AI Campaign Prompt
+                    </label>
+                    <span className="text-[10px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
+                      GPT-4o
+                    </span>
+                  </div>
+
+                  <textarea
+                    rows={4}
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Enter campaign intent or instructions for AI (e.g. Write a personalized reach-out introducing our AI & SharePoint services tailored to their job role and company details)..."
+                    className="w-full bg-white border border-purple-200 rounded-xl p-3 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors shadow-sm resize-none"
+                  />
+
+                  <p className="text-[10px] text-purple-700 leading-normal">
+                    AI will analyze all SharePoint row columns for each recipient (Name, Title, Company, Notes, etc.) and generate a tailored, professional email draft.
+                  </p>
+                </div>
+              )}
             </div>
 
             {availableColumns.length > 0 && (
@@ -1300,9 +1377,9 @@ export default function SharePointContacts() {
         </div>
       ) : (
         /* ────────────────── STEP 2: CAMPAIGN CONFIGURATION ────────────────── */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+        <div className="grid grid-cols-1 max-w-xl animate-fade-in">
           {/* Setup Panel */}
-          <div className="lg:col-span-1 space-y-6">
+          <div className="space-y-6">
             <div className="glass-card p-6 space-y-5 bg-white border border-gray-200 shadow-sm">
               <h2 className="section-title flex items-center gap-2 border-b border-gray-150 border-gray-100 pb-3">
                 <Send className="w-4 h-4 text-brand-600" />
@@ -1322,7 +1399,7 @@ export default function SharePointContacts() {
                 />
               </div>
 
-              {/* Draft Generation Mode Selector */}
+              {/* Email Content Strategy (read-only summary — chosen in Step 1) */}
               <div className="space-y-2 border-t border-b border-gray-100 py-3">
                 <label className="text-xs font-semibold text-gray-700 flex items-center justify-between">
                   <span>Email Content Strategy</span>
@@ -1331,44 +1408,12 @@ export default function SharePointContacts() {
                   </span>
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDraftMode('template')}
-                    className={`p-2.5 rounded-xl border text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all ${
-                      draftMode === 'template'
-                        ? 'bg-brand-50 border-brand-500 text-brand-700 font-semibold shadow-sm'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Mail className="w-4 h-4" />
-                    <span>Static Template</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setDraftMode('ai')}
-                    className={`p-2.5 rounded-xl border text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all ${
-                      draftMode === 'ai'
-                        ? 'bg-purple-50 border-purple-500 text-purple-700 font-semibold shadow-sm'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-purple-50 hover:text-purple-600'
-                    }`}
-                  >
-                    <Wand2 className="w-4 h-4 text-purple-600" />
-                    <span>AI Generate Draft</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Template vs AI Options */}
-              {draftMode === 'template' ? (
-                /* Selected Template (Read-Only in Step 2) */
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-500">Email Template</label>
+                {draftMode === 'template' ? (
                   <div className="flex gap-2">
-                    <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm flex items-center justify-between">
+                    <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-brand-600 shrink-0" />
                       <span className="font-semibold text-brand-600">
-                        {selectedTemplateObj?.name || 'No template selected'}
+                        Static Template — {selectedTemplateObj?.name || 'No template selected'}
                       </span>
                     </div>
                     {selectedTemplate && (
@@ -1385,52 +1430,28 @@ export default function SharePointContacts() {
                       </button>
                     )}
                   </div>
-                </div>
-              ) : (
-                /* AI Generation Parameters */
-                <div className="space-y-3 bg-purple-50/50 border border-purple-100 rounded-xl p-4 animate-fade-in">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-purple-900 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-purple-600" />
-                      Master AI Campaign Prompt
-                    </label>
-                    <span className="text-[10px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
-                      GPT-4o
-                    </span>
-                  </div>
-
-                  <textarea
-                    rows={4}
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder="Enter campaign intent or instructions for AI (e.g. Write a personalized reach-out introducing our AI & SharePoint services tailored to their job role and company details)..."
-                    className="w-full bg-white border border-purple-200 rounded-xl p-3 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors shadow-sm resize-none"
-                  />
-
-                  <p className="text-[10px] text-purple-700 leading-normal">
-                    AI will analyze all SharePoint row columns for each recipient (Name, Title, Company, Notes, etc.) and generate a tailored, professional email draft.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={handleGenerateAiPreview}
-                    disabled={generatingAiPreview}
-                    className="w-full py-2 px-3 bg-white hover:bg-purple-100 border border-purple-300 text-purple-800 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50"
-                  >
-                    {generatingAiPreview ? (
-                      <>
+                ) : (
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-purple-50/50 border border-purple-100 rounded-xl px-4 py-2.5 text-gray-700 text-sm flex items-center gap-2">
+                      <Wand2 className="w-4 h-4 text-purple-600 shrink-0" />
+                      <span className="font-semibold text-purple-700">AI Generate Draft</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiPreview}
+                      disabled={generatingAiPreview}
+                      className="px-3 rounded-xl bg-white hover:bg-purple-100 border border-purple-300 text-purple-800 text-xs font-semibold flex items-center justify-center gap-2 transition-all shrink-0 shadow-sm disabled:opacity-50"
+                      title="Preview Sample AI Draft"
+                    >
+                      {generatingAiPreview ? (
                         <div className="w-3.5 h-3.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                        Generating AI Sample...
-                      </>
-                    ) : (
-                      <>
+                      ) : (
                         <Wand2 className="w-3.5 h-3.5 text-purple-600" />
-                        Preview Sample AI Draft
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Scheduling Options */}
               <div className="space-y-3 border-t border-gray-100 pt-3">
@@ -1482,7 +1503,12 @@ export default function SharePointContacts() {
                 <button
                   id="start-campaign-btn"
                   onClick={handleStartCampaign}
-                  disabled={sending || !selectedTemplate || selectedValidCount === 0}
+                  disabled={
+                    sending ||
+                    selectedValidCount === 0 ||
+                    (draftMode === 'template' && !selectedTemplate) ||
+                    (draftMode === 'ai' && !aiPrompt.trim())
+                  }
                   className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed py-3 text-sm font-semibold rounded-xl"
                 >
                   {sending ? (
@@ -1505,33 +1531,6 @@ export default function SharePointContacts() {
                   Back to Contacts
                 </button>
               </div>
-            </div>
-          </div>
-
-          {/* Preview Panel */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="glass-card p-6 bg-white border border-gray-200 shadow-sm">
-              <h3 className="text-sm font-bold text-gray-900 mb-3 pb-3 border-b border-gray-100">Email Contents Preview</h3>
-              {selectedTemplateObj ? (
-                <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50/50 p-4">
-                  <p className="text-xs text-gray-500 mb-2 font-medium">Subject: <span className="text-gray-900 font-semibold font-mono">{selectedTemplateObj.subject}</span></p>
-                  <hr className="border-gray-200 my-3" />
-                  <div className="text-xs text-gray-700 bg-white p-1 rounded-lg overflow-y-auto max-h-[400px] border border-gray-200">
-                    <iframe
-                      srcDoc={selectedTemplateObj.htmlBody}
-                      title="Template Preview"
-                      className="w-full border-none bg-white rounded"
-                      style={{ height: '350px' }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-16 text-gray-400 border border-dashed border-gray-300 rounded-xl bg-gray-50/30">
-                  <Mail className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-700">No template selected yet</p>
-                  <p className="text-xs text-gray-500 mt-1">Select a template on the left panel to preview email content here.</p>
-                </div>
-              )}
             </div>
           </div>
         </div>
