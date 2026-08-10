@@ -1,15 +1,25 @@
 const axios = require('axios');
-const { enrichContactContext } = require('./webSearch');
+
+const DRAFT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    subject: { type: 'string' },
+    htmlBody: { type: 'string' },
+  },
+  required: ['subject', 'htmlBody'],
+  additionalProperties: false,
+};
 
 /**
- * Generates personalized email subject and HTML body using Azure OpenAI / OpenAI based on master prompt & contact row context.
- * Automatically enriches contact data with real-time web & LinkedIn research scraped from the recipient's website.
+ * Generates personalized email subject and HTML body using Azure OpenAI based on the
+ * master prompt & contact row context. Uses the model's built-in web_search tool
+ * (Responses API) to research the recipient's company website / LinkedIn / any other
+ * URL present in the SharePoint row data, so no separate scraping step is needed.
  */
 async function generateRecipientDraft({ masterPrompt, contactData }) {
   const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
   const azureApiKey = process.env.AZURE_OPENAI_API_KEY;
   const azureDeployment = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT || 'gpt-4o';
-  const azureApiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview';
   const azureTemp = parseFloat(process.env.AZURE_OPENAI_TEMPERATURE || '0.1');
 
   const standardApiKey = process.env.OPENAI_API_KEY;
@@ -18,11 +28,14 @@ async function generateRecipientDraft({ masterPrompt, contactData }) {
     throw new Error('Neither AZURE_OPENAI_API_KEY nor OPENAI_API_KEY is configured in backend environment variables.');
   }
 
-  // Perform automated real-time web intelligence scraping for prospect website & LinkedIn context
-  const enrichedContactData = await enrichContactContext(contactData);
+  // Surface every URL-looking field in the SharePoint row (company website, LinkedIn,
+  // or any other link) so the model knows exactly what to look up with web_search.
+  const urlFields = Object.entries(contactData || {})
+    .filter(([, value]) => typeof value === 'string' && /^https?:\/\//i.test(value.trim()))
+    .map(([key, value]) => `${key}: ${value.trim()}`);
 
   const systemPrompt = `You are an elite B2B executive email copywriter representing Desire InfoWeb (https://desireinfoweb.com), a premier Certified Microsoft Solutions Partner.
-Your mission is to compose a highly personalized, executive-level outreach email for a prospect based on their individual SharePoint row data AND live web research.
+Your mission is to compose a highly personalized, executive-level outreach email for a prospect based on their individual SharePoint row data AND live web research you perform yourself using the web_search tool.
 
 COMPANY IDENTITY & SENDER DEFINITION (CRITICAL):
 - SENDER NAME: Meet Modi
@@ -45,6 +58,10 @@ OFFICIAL DESIRE INFOWEB PRODUCT SUITE / ADD-INS (https://desireinfoweb.com/produ
 - Corporate Calendar & Milestone Celebration App
 - Audit System & Quick Links Portal
 
+WEB RESEARCH INSTRUCTIONS:
+- If the recipient row includes a company website, LinkedIn profile, or any other URL, use the web_search tool to look up that URL and gather real, current information about the company or person (industry focus, recent news, products, leadership) before writing the email.
+- Only reference facts you actually found via web_search or that are present in the row data. Never fabricate research findings.
+
 MANDATORY EMAIL WRITING STYLE & PARAGRAPH FLOW (MUST MATCH EXACTLY):
 Your generated htmlBody MUST strictly follow this exact structural flow, tone, and HTML layout:
 
@@ -57,7 +74,7 @@ Your generated htmlBody MUST strictly follow this exact structural flow, tone, a
   </p>
 
   <p style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #0f172a;">Here’s how we can support [Company Name]’s growth:</p>
-  
+
   <ul style="padding-left: 20px; margin-bottom: 24px; font-size: 14px; color: #334155;">
     <li style="margin-bottom: 10px;"><strong>AI-Driven Insights:</strong> Leverage advanced AI and Copilot Studio to streamline workflows and enhance decision-making.</li>
     <li style="margin-bottom: 10px;"><strong>Seamless SharePoint Modernization:</strong> Upgrade your existing SharePoint infrastructure to improve usability, security, and scalability.</li>
@@ -69,7 +86,7 @@ Your generated htmlBody MUST strictly follow this exact structural flow, tone, a
   </p>
 
   <p style="font-size: 14px; margin-bottom: 16px; color: #334155;">
-    [Specific tailored observation based on recipient's Remark, Notes, or scraped website metadata, e.g. "I noticed that a demo has already been scheduled..." or "I noticed your company's focus on scalable software platforms..." If client website is present, add: "In the meantime, feel free to explore more on your site: <a href='[Client Website]'>[Domain]</a>."]
+    [Specific tailored observation based on recipient's Remark, Notes, or real web research findings, e.g. "I noticed that a demo has already been scheduled..." or "I noticed your company's focus on scalable software platforms..." If client website is present, add: "In the meantime, feel free to explore more on your site: <a href='[Client Website]'>[Domain]</a>."]
   </p>
 
   <p style="font-size: 14px; margin-bottom: 24px; color: #334155;">
@@ -89,7 +106,7 @@ Your generated htmlBody MUST strictly follow this exact structural flow, tone, a
     <p style="margin: 2px 0; font-weight: 500; color: #2563eb;">Senior Technology Consultant | Desire InfoWeb</p>
     <p style="margin: 2px 0;">Certified Microsoft Solutions Partner</p>
     <p style="margin: 4px 0;">
-      Email: <a href="mailto:meet@desireinfoweb.in" style="color: #2563eb; text-decoration: none;">meet@desireinfoweb.in</a> | 
+      Email: <a href="mailto:meet@desireinfoweb.in" style="color: #2563eb; text-decoration: none;">meet@desireinfoweb.in</a> |
       Website: <a href="https://desireinfoweb.com" style="color: #2563eb; font-weight: bold; text-decoration: none;">https://desireinfoweb.com</a>
     </p>
   </div>
@@ -97,7 +114,7 @@ Your generated htmlBody MUST strictly follow this exact structural flow, tone, a
 
 CRITICAL CONSTRAINTS:
 - ABSOLUTELY NO SENDER PLACEHOLDERS: NEVER leave [Your Name] or [Your Job Title] in the signature. The signature MUST always be finalized as Meet Modi, Senior Technology Consultant | Desire InfoWeb.
-- Output MUST be a raw valid JSON object with keys "subject" and "htmlBody". Do NOT enclose in markdown code blocks (\`\`\`json).`;
+- Output MUST be a raw valid JSON object with keys "subject" and "htmlBody".`;
 
   const userPrompt = `SENDER BRANDING:
 Sender: Meet Modi
@@ -110,59 +127,84 @@ Products: Organization Chart, Onboarding Portal, Employee Directory, Project Man
 MASTER CAMPAIGN GOAL:
 "${masterPrompt || 'Introduce Desire InfoWeb SharePoint and AI modernization services tailored to their job role and organization.'}"
 
-ENRICHED RECIPIENT ROW CONTEXT & WEB INTELLIGENCE:
-${JSON.stringify(enrichedContactData, null, 2)}
+RECIPIENT ROW DATA FROM SHAREPOINT:
+${JSON.stringify(contactData, null, 2)}
 
-Draft the personalized email from Meet Modi (meet@desireinfoweb.in) at Desire InfoWeb (https://desireinfoweb.com) specifically for ${contactData.name || contactData['Full Name'] || 'the recipient'} at ${contactData['Company Name'] || contactData.Company || 'their organization'}. Utilize the scraped website intelligence in _aiWebResearch to show real research. Ensure Meet Modi signature is fully populated with no placeholders.`;
+${urlFields.length > 0
+    ? `URLS FOUND IN THIS ROW (use web_search to research these before writing):\n${urlFields.join('\n')}`
+    : 'No URLs were found in this row — write the email using only the row data above, without web research.'}
+
+Draft the personalized email from Meet Modi (meet@desireinfoweb.in) at Desire InfoWeb (https://desireinfoweb.com) specifically for ${contactData.name || contactData['Full Name'] || 'the recipient'} at ${contactData['Company Name'] || contactData.Company || 'their organization'}. Ensure Meet Modi signature is fully populated with no placeholders.`;
 
   try {
     let response;
 
     if (azureApiKey && azureEndpoint) {
       const cleanEndpoint = azureEndpoint.replace(/\/+$/, '');
-      const url = `${cleanEndpoint}/openai/deployments/${azureDeployment}/chat/completions?api-version=${azureApiVersion}`;
+      const url = `${cleanEndpoint}/responses`;
 
       response = await axios.post(
         url,
         {
-          messages: [
+          model: azureDeployment,
+          input: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
+            { role: 'user', content: userPrompt },
           ],
           temperature: azureTemp,
-          response_format: { type: 'json_object' }
+          tools: urlFields.length > 0 ? [{ type: 'web_search' }] : undefined,
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'email_draft',
+              schema: DRAFT_JSON_SCHEMA,
+              strict: true,
+            },
+          },
         },
         {
           headers: {
             'api-key': azureApiKey,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          timeout: 30000
+          timeout: 45000,
         }
       );
     } else {
       response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
+        'https://api.openai.com/v1/responses',
         {
           model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-          messages: [
+          input: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
+            { role: 'user', content: userPrompt },
           ],
           temperature: 0.2,
-          response_format: { type: 'json_object' }
+          tools: urlFields.length > 0 ? [{ type: 'web_search' }] : undefined,
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'email_draft',
+              schema: DRAFT_JSON_SCHEMA,
+              strict: true,
+            },
+          },
         },
         {
           headers: {
             'Authorization': `Bearer ${standardApiKey}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          timeout: 30000
+          timeout: 45000,
         }
       );
     }
 
-    const contentStr = response.data.choices[0]?.message?.content;
+    const contentStr = extractOutputText(response.data);
+    if (!contentStr) {
+      throw new Error('No output text returned by the model');
+    }
+
     let parsed;
     try {
       parsed = JSON.parse(contentStr);
@@ -182,6 +224,17 @@ Draft the personalized email from Meet Modi (meet@desireinfoweb.in) at Desire In
     console.error('AI Draft Generation Error:', errorDetails);
     throw new Error(`AI Draft Generation Failed: ${typeof errorDetails === 'string' ? errorDetails : JSON.stringify(errorDetails)}`);
   }
+}
+
+// Extracts the final assistant message text from a Responses API payload,
+// regardless of whether preceding items are web_search_call / reasoning items.
+function extractOutputText(data) {
+  if (typeof data.output_text === 'string' && data.output_text) {
+    return data.output_text;
+  }
+  const messageItem = (data.output || []).find((item) => item.type === 'message');
+  const textPart = messageItem?.content?.find((c) => c.type === 'output_text');
+  return textPart?.text || null;
 }
 
 module.exports = { generateRecipientDraft };
