@@ -1,4 +1,5 @@
 const df = require('durable-functions');
+const crypto = require('crypto');
 const { prisma } = require('../lib/prisma');
 const { sendEmail } = require('../lib/emailSender');
 const { renderTemplate } = require('../lib/templates');
@@ -60,7 +61,12 @@ df.app.activity('sendBatchActivity', {
     for (let i = 0; i < recipients.length; i++) {
       const recipient = recipients[i];
       try {
-        const unsubscribeLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe?email=${encodeURIComponent(recipient.email)}`;
+        const token = crypto
+          .createHash('sha256')
+          .update(recipient.email + 'desire-unsubscribe-salt')
+          .digest('hex')
+          .substring(0, 32);
+        const unsubscribeLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/unsubscribe/${token}?email=${encodeURIComponent(recipient.email)}`;
         const variables = { name: recipient.name, email: recipient.email, unsubscribeLink };
 
         let subject;
