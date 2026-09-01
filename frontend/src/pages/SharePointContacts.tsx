@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
   CheckCircle, AlertCircle, XCircle, MinusCircle,
   Users, Mail, Send, History, Trash2, X, AlertTriangle,
-  Calendar, Layers, Search, SlidersHorizontal, Clock, Sparkles, Wand2,
+  Calendar, Layers, Search, SlidersHorizontal, Clock, Sparkles, Wand2, Filter,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/upload.api';
@@ -26,7 +26,10 @@ const SYSTEM_COLUMNS = new Set([
   'AppAuthorLookupId', 'DocIcon', 'HTML_x0020_File_x0020_Type', 'FSObjType',
   'Created_x0020_Date', 'Last_x0020_Modified', 'LookupId', 'FileRef',
   'FileDirRef', 'FileLeafRef', 'UniqueId', 'ProgId', 'ScopeId', 'Order',
-  'GUID', 'MetaInfo', 'MediaServiceImageTags', 'FirstUniqueAncestorSecurable'
+  'GUID', 'MetaInfo', 'MediaServiceImageTags', 'FirstUniqueAncestorSecurable',
+  // Display names for compliance & system columns
+  'Version', 'Item Child Count', 'Folder Child Count', 'Label setting',
+  'Retention label', 'Retention label Applied', 'Label applied by'
 ]);
 
 const NAME_CANDIDATES = new Set(['name', 'title', 'contactname', 'fullname', 'firstname']);
@@ -75,44 +78,7 @@ export default function SharePointContacts() {
   const [rangeFrom, setRangeFrom] = useState<string>('1');
   const [rangeTo, setRangeTo] = useState<string>('');
 
-  const selectedValidCount = contacts.filter(
-    (c) => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)
-  ).length;
 
-  const handleApplyRange = (isCumulative: boolean) => {
-    const from = parseInt(rangeFrom, 10);
-    const to = parseInt(rangeTo, 10);
-
-    if (isNaN(from) || isNaN(to) || from < 1 || to < from) {
-      toast.error('Please enter a valid range (From must be <= To, and both >= 1)');
-      return;
-    }
-
-    if (to > contacts.length) {
-      toast.error(`Range upper bound cannot exceed total contacts count (${contacts.length})`);
-      return;
-    }
-
-    const rangeValidIds: string[] = [];
-    contacts.forEach((c, idx) => {
-      const rowNum = idx + 1;
-      if (rowNum >= from && rowNum <= to && c.status === 'valid' && c.itemId) {
-        rangeValidIds.push(c.itemId);
-      }
-    });
-
-    setSelectedItemIds((prev) => {
-      const next = isCumulative ? new Set(prev) : new Set<string>();
-      rangeValidIds.forEach(id => next.add(id));
-      return next;
-    });
-
-    toast.success(
-      isCumulative
-        ? `Added range ${from}-${to} (${rangeValidIds.length} valid contacts added)`
-        : `Selected range ${from}-${to} (${rangeValidIds.length} valid contacts selected)`
-    );
-  };
 
   // ── Campaign creation state ──
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -133,7 +99,7 @@ export default function SharePointContacts() {
       toast.error('Please enter instructions for the AI generator');
       return;
     }
-    const sampleContact = contacts.find(c => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)) || contacts[0];
+    const sampleContact = filteredContacts.find(c => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)) || filteredContacts[0];
     if (!sampleContact) {
       toast.error('No contact available for AI draft preview');
       return;
@@ -195,6 +161,22 @@ export default function SharePointContacts() {
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
   const [mappedNameField, setMappedNameField] = useState<string>('');
   const [mappedEmailField, setMappedEmailField] = useState<string>('');
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+
+  const handleColumnFilterChange = (colName: string, value: string) => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [colName]: value,
+    }));
+  };
+
+  const handleClearColumnFilters = () => {
+    setColumnFilters({});
+  };
+
+  const hasActiveColumnFilters = useMemo(() => {
+    return Object.values(columnFilters).some((v) => Boolean(v && v.trim()));
+  }, [columnFilters]);
 
   const handleIframeLoad = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = e.currentTarget;
@@ -307,6 +289,7 @@ export default function SharePointContacts() {
     }
     setSyncing(true);
     setContacts([]);
+    setColumnFilters({});
     try {
       const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode, draftMode === 'template' ? selectedTemplate : undefined, draftMode === 'ai');
       const syncedContacts = res.data.contacts || [];
@@ -421,7 +404,7 @@ export default function SharePointContacts() {
         aiPrompt: draftMode === 'ai' ? aiPrompt.trim() : undefined,
         syncMode: syncMode,
         configId: selectedConfigId || undefined,
-        contacts: contacts
+        contacts: filteredContacts
           .filter(c => c.itemId && selectedItemIds.has(c.itemId))
           .map(c => ({ name: c.name, email: c.email, itemId: c.itemId, rawFields: c.rawFields })),
         scheduledAt: isScheduled ? new Date(scheduledAt).toISOString() : undefined,
@@ -588,17 +571,46 @@ export default function SharePointContacts() {
   };
 
   // ── Filtered contacts ──
-  const visibleContacts = contacts
-    .filter((c) => filterStatus === 'all' || c.status === filterStatus)
-    .filter((c) => {
-      if (!searchQuery) return true;
-      const query = searchQuery.toLowerCase();
-      return (
-        c.name?.toLowerCase().includes(query) ||
-        c.email?.toLowerCase().includes(query)
-      );
-    })
-    .slice(0, showAllContacts ? undefined : 20);
+  const filteredContacts = useMemo(() => {
+    return contacts
+      .filter((c) => filterStatus === 'all' || c.status === filterStatus)
+      .filter((c) => {
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase().trim();
+        return (
+          (c.name || '').toLowerCase().includes(query) ||
+          (c.email || '').toLowerCase().includes(query)
+        );
+      })
+      .filter((c) => {
+        if (!hasActiveColumnFilters) return true;
+        for (const [colName, filterVal] of Object.entries(columnFilters)) {
+          if (!filterVal || !filterVal.trim()) continue;
+          const cleanFilter = filterVal.trim().toLowerCase();
+
+          let cellValue: string | number = '';
+          if (colName === mappedNameField) {
+            cellValue = c.name || '';
+          } else if (colName === mappedEmailField) {
+            cellValue = c.email || '';
+          } else {
+            const val = c.rawFields?.[colName];
+            if (val !== undefined && val !== null) {
+              cellValue = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            }
+          }
+
+          if (!String(cellValue).toLowerCase().includes(cleanFilter)) {
+            return false;
+          }
+        }
+        return true;
+      });
+  }, [contacts, filterStatus, searchQuery, columnFilters, hasActiveColumnFilters, mappedNameField, mappedEmailField]);
+
+  const visibleContacts = useMemo(() => {
+    return filteredContacts.slice(0, showAllContacts ? undefined : 20);
+  }, [filteredContacts, showAllContacts]);
 
   const visibleValidContacts = visibleContacts.filter(c => c.status === 'valid');
   const isAllVisibleSelected = visibleValidContacts.length > 0 && visibleValidContacts.every(c => c.itemId && selectedItemIds.has(c.itemId));
@@ -620,6 +632,45 @@ export default function SharePointContacts() {
     });
   };
 
+  const selectedValidCount = filteredContacts.filter(
+    (c) => c.status === 'valid' && c.itemId && selectedItemIds.has(c.itemId)
+  ).length;
+
+  const handleApplyRange = (isCumulative: boolean) => {
+    const from = parseInt(rangeFrom, 10);
+    const to = parseInt(rangeTo, 10);
+
+    if (isNaN(from) || isNaN(to) || from < 1 || to < from) {
+      toast.error('Please enter a valid range (From must be <= To, and both >= 1)');
+      return;
+    }
+
+    if (to > filteredContacts.length) {
+      toast.error(`Range upper bound cannot exceed total filtered contacts count (${filteredContacts.length})`);
+      return;
+    }
+
+    const rangeValidIds: string[] = [];
+    filteredContacts.forEach((c, idx) => {
+      const rowNum = idx + 1;
+      if (rowNum >= from && rowNum <= to && c.status === 'valid' && c.itemId) {
+        rangeValidIds.push(c.itemId);
+      }
+    });
+
+    setSelectedItemIds((prev) => {
+      const next = isCumulative ? new Set(prev) : new Set<string>();
+      rangeValidIds.forEach(id => next.add(id));
+      return next;
+    });
+
+    toast.success(
+      isCumulative
+        ? `Added range ${from}-${to} (${rangeValidIds.length} valid contacts added)`
+        : `Selected range ${from}-${to} (${rangeValidIds.length} valid contacts selected)`
+    );
+  };
+
   const statusIcon = (status: string) => {
     switch (status) {
       case 'valid': return <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />;
@@ -630,7 +681,7 @@ export default function SharePointContacts() {
     }
   };
 
-  const filteredTotal = contacts.filter((c) => filterStatus === 'all' || c.status === filterStatus).length;
+  const filteredTotal = filteredContacts.length;
 
   const selectedTemplateObj = templates.find((t) => t.id === selectedTemplate);
 
@@ -1003,6 +1054,17 @@ export default function SharePointContacts() {
                     </select>
                   </div>
 
+                  {/* Clear Column Filters Button */}
+                  {hasActiveColumnFilters && (
+                    <button
+                      onClick={handleClearColumnFilters}
+                      className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg px-3 py-1.5 text-xs text-amber-700 font-semibold shadow-sm transition-all focus:outline-none h-[28px] select-none"
+                    >
+                      <Filter className="w-3.5 h-3.5 text-amber-600" />
+                      Clear Column Filters
+                    </button>
+                  )}
+
                   {/* Column Picker */}
                   {availableColumns.length > 0 && (
                     <div className="relative">
@@ -1135,6 +1197,49 @@ export default function SharePointContacts() {
                         })}
                         <th className="px-4 py-3 w-32">Status</th>
                         <th className="px-4 py-3 w-28 text-right">Actions</th>
+                      </tr>
+
+                      {/* Per-Column Interactive Filters Row */}
+                      <tr className="bg-gray-100/70 border-b border-gray-200">
+                        <td className="px-4 py-1 text-center w-10"></td>
+                        <td className="px-4 py-1 w-14"></td>
+                        {selectedColumns.map((colName) => {
+                          const filterVal = columnFilters[colName] || '';
+                          return (
+                            <td key={`filter-${colName}`} className="px-2 py-1.5">
+                              <div className="relative flex items-center">
+                                <input
+                                  type="text"
+                                  placeholder={`Filter ${colName.replace(/_x0020_/g, ' ')}...`}
+                                  value={filterVal}
+                                  onChange={(e) => handleColumnFilterChange(colName, e.target.value)}
+                                  className="w-full bg-white border border-gray-300 focus:border-brand-500 rounded-md px-2 py-1 pr-6 text-[11px] text-gray-800 placeholder-gray-400 focus:outline-none shadow-sm font-normal"
+                                />
+                                {filterVal && (
+                                  <button
+                                    onClick={() => handleColumnFilterChange(colName, '')}
+                                    className="absolute right-1.5 text-gray-400 hover:text-gray-600"
+                                    title="Clear filter"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-1 w-32"></td>
+                        <td className="px-4 py-1 w-28 text-right">
+                          {hasActiveColumnFilters && (
+                            <button
+                              type="button"
+                              onClick={handleClearColumnFilters}
+                              className="text-[10px] text-brand-600 hover:text-brand-700 font-bold hover:underline whitespace-nowrap"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-sm text-gray-700">

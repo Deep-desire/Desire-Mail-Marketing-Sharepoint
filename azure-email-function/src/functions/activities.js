@@ -5,6 +5,21 @@ const { sendEmail } = require('../lib/emailSender');
 const { renderTemplate } = require('../lib/templates');
 const { generateRecipientDraft } = require('../lib/aiDraft');
 
+// Activity 0: Read-only campaign metadata/stats fetch — does NOT claim any
+// recipients. Safe to call as many times as needed (e.g. to check scheduling
+// info before the send loop, or final sentCount/failedCount after it) without
+// side effects on recipient rows.
+df.app.activity('getCampaignStatusActivity', {
+  handler: async (input) => {
+    const { campaignId } = input;
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { template: true },
+    });
+    return campaign;
+  },
+});
+
 // Activity 1: Get campaign metadata & batch of pending recipients.
 // Atomically claims the batch (pending -> sending) before returning it, so a
 // concurrent/duplicate orchestration run (or an activity replay/retry) for the

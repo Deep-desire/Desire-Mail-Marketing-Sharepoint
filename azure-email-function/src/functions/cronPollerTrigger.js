@@ -3,18 +3,39 @@ const df = require('durable-functions');
 const { prisma } = require('../lib/prisma');
 
 app.timer('scheduledCampaignPoller', {
-  schedule: '0 */5 * * * *',
+  schedule: '0 * * * * *',
   extraInputs: [df.input.durableClient()],
   handler: async (myTimer, context) => {
     const client = df.getClient(context);
     const now = new Date();
 
     try {
+      // Recover recipients stranded in 'sending': a batch activity that crashed or
+      // whose orchestration instance died mid-run leaves rows claimed but never
+      // resolved to sent/failed, and the campaign's pendingCount/status already
+      // reflect them as claimed — so nothing else will ever retry them. Anything
+      // still 'sending' more than 10 minutes after being claimed is safe to assume
+      // abandoned (a real send completes in well under a minute) and gets reset to
+      // 'pending' so the next orchestration run picks it back up.
+      const staleThreshold = new Date(now.getTime() - 10 * 60 * 1000);
+      const stranded = await prisma.recipient.updateMany({
+        where: { status: 'sending', updatedAt: { lte: staleThreshold } },
+        data: { status: 'pending' },
+      });
+      if (stranded.count > 0) {
+        console.log(`[Cron Poller] Reset ${stranded.count} stranded 'sending' recipient(s) back to 'pending'.`);
+        await prisma.campaign.updateMany({
+          where: { recipients: { some: { status: 'pending' } }, status: { in: ['completed', 'failed'] } },
+          data: { status: 'processing' },
+        });
+      }
+
       const campaignsToResume = await prisma.campaign.findMany({
         where: {
           OR: [
             { status: 'scheduled', scheduledAt: { lte: now } },
             { status: 'processing', pendingCount: { gt: 0 } },
+            { status: 'processing', recipients: { some: { status: 'pending' } } },
           ],
         },
       });

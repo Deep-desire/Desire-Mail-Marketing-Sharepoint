@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -66,6 +67,7 @@ model Recipient {
   campaignId   String    @map("campaign_id")
   campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
 
   @@index([campaignId])
   @@index([campaignId, status])

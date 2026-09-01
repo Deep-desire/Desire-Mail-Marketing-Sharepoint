@@ -8,8 +8,8 @@ df.app.orchestration('emailCampaignOrchestrator', function* (context) {
     return { error: 'campaignId input missing' };
   }
 
-  // Step 1: Fetch initial campaign details
-  const campaign = yield context.df.callActivity('getCampaignDataActivity', { campaignId });
+  // Step 1: Fetch initial campaign details (read-only — does not claim recipients)
+  const campaign = yield context.df.callActivity('getCampaignStatusActivity', { campaignId });
   if (!campaign) {
     return { error: 'Campaign not found' };
   }
@@ -50,7 +50,10 @@ df.app.orchestration('emailCampaignOrchestrator', function* (context) {
     yield context.df.createTimer(nextTick);
   }
 
-  // Step 5: Mark campaign completed
-  yield context.df.callActivity('finalizeCampaignActivity', { campaignId, status: 'completed' });
-  return { campaignId, status: 'completed' };
+  // Step 5: Mark campaign completed (or failed, if nothing actually sent)
+  const finalData = yield context.df.callActivity('getCampaignStatusActivity', { campaignId });
+  const finalStatus =
+    finalData && finalData.failedCount > 0 && finalData.sentCount === 0 ? 'failed' : 'completed';
+  yield context.df.callActivity('finalizeCampaignActivity', { campaignId, status: finalStatus });
+  return { campaignId, status: finalStatus };
 });
