@@ -3,3 +3,4 @@ require('./functions/activities');
 require('./functions/emailCampaignOrchestrator');
 require('./functions/httpStartTrigger');
 require('./functions/cronPollerTrigger');
+require('./functions/sharepointFetchTrigger');

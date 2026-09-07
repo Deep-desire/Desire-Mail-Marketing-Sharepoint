@@ -46,6 +46,8 @@ export interface SPContactsResponse {
   invalidCount: number;
   duplicateCount: number;
   unsubscribedCount: number;
+  /** Total raw SharePoint list items seen before filtering out rows with no email address */
+  rawItemCount?: number;
 }
 
 // ─── Campaigns ────────────────────────────────────────────────

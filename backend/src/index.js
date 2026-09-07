@@ -514,11 +514,11 @@ apiRouter.get('/sharepoint/contacts', catchAsync(async (req, res) => {
     ? await getAiPlaceholderTemplateId()
     : (templateId || null);
 
-  const allContacts = await getSharePointContacts(configId);
+  const { contacts: allContacts, rawItemCount } = await getSharePointContacts(configId);
   // Pass configId and templateId so incremental mode scopes history to THIS list and template
   const result = await reconcileContacts(allContacts, mode, configId, effectiveTemplateId);
 
-  return res.status(200).json(result);
+  return res.status(200).json({ ...result, rawItemCount });
 }));
 
 /**
@@ -610,7 +610,7 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
     reconciliation = await reconcileContacts(contacts, syncMode, configId || null, finalTemplateId || null);
   } else {
     if (!configId) return res.status(400).json({ message: 'configId is required when contacts are not provided' });
-    const allContacts = await getSharePointContacts(configId);
+    const { contacts: allContacts } = await getSharePointContacts(configId);
     reconciliation = await reconcileContacts(allContacts, syncMode, configId, finalTemplateId || null);
   }
 

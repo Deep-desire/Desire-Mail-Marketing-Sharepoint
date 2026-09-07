@@ -60,6 +60,7 @@ export default function SharePointContacts() {
   const [syncing, setSyncing] = useState(false);
   const [contacts, setContacts] = useState<SPContact[]>([]);
   const [stats, setStats] = useState({ total: 0, validCount: 0, invalidCount: 0, duplicateCount: 0, unsubscribedCount: 0 });
+  const [rawItemCount, setRawItemCount] = useState<number | null>(null);
   const [showAllContacts, setShowAllContacts] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'valid' | 'invalid' | 'duplicate' | 'unsubscribed'>('all');
   const [syncMode, setSyncMode] = useState<'incremental' | 'full'>('incremental');
@@ -293,6 +294,7 @@ export default function SharePointContacts() {
     try {
       const res = await uploadApi.getSharePointContacts(selectedConfigId, syncMode, draftMode === 'template' ? selectedTemplate : undefined, draftMode === 'ai');
       const syncedContacts = res.data.contacts || [];
+      setRawItemCount(typeof res.data.rawItemCount === 'number' ? res.data.rawItemCount : null);
 
       // Track unsubscribed email list locally for inline edits validation
       const unsubs = new Set(
@@ -930,6 +932,14 @@ export default function SharePointContacts() {
           {contacts.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 animate-fade-in">
               <div className="flex flex-wrap gap-3">
+                {rawItemCount !== null && rawItemCount > stats.total && (
+                  <StatPill
+                    icon={<Users className="w-4 h-4" />}
+                    label="SharePoint Records Found"
+                    value={rawItemCount}
+                    color="text-gray-500"
+                  />
+                )}
                 <StatPill icon={<Users className="w-4 h-4" />} label="Total" value={stats.total} color="text-gray-900" />
                 <StatPill icon={<Mail className="w-4 h-4" />} label="Selected (to Send)" value={selectedValidCount} color="text-brand-600" />
                 <StatPill icon={<CheckCircle className="w-4 h-4" />} label="Valid" value={stats.validCount} color="text-emerald-600" />

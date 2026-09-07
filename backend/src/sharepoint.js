@@ -202,74 +202,49 @@ async function loadConfig(configId) {
 
 /**
  * Fetch all contacts from a SharePoint List identified by DB config UUID.
- * Returns: Array<{ name: string, email: string, modifiedAt: string }>
+ * Returns: { contacts: Array<{ name, email, modifiedAt }>, rawItemCount: number }
+ * rawItemCount is the total SharePoint list items seen before filtering out rows
+ * with no usable email address — lets callers show "X records found, Y have emails".
+ *
+ * Delegates the actual Graph API paging to the Azure Function (azure-email-function/
+ * src/functions/sharepointFetchTrigger.js). Large lists (10k+ items) require many
+ * sequential Graph API round trips, which risk exceeding Vercel's serverless function
+ * timeout if run in-process here — the Azure Function has no such constraint.
  */
 async function getSharePointContacts(configId) {
   const dbConfig = await loadConfig(configId);
-  const { tenantId, clientId, clientSecret, siteId, listId, name } = resolveCredentials(dbConfig);
+  const { name } = resolveCredentials(dbConfig);
 
-  if (!siteId || !listId) {
-    throw new Error(`SharePoint config '${name}' is missing Site ID or List ID.`);
-  }
+  const azureUrl = process.env.AZURE_SHAREPOINT_FUNCTION_URL;
+  const secretKey = process.env.AZURE_SHAREPOINT_FUNCTION_SECRET_KEY;
 
-  const token = await getAccessToken(tenantId, clientId, clientSecret);
-  const columnMap = await fetchColumnMap(siteId, listId, token);
-
-  const baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`;
-  let nextUrl = `${baseUrl}?expand=fields&$top=999`;
-  const allItems = [];
-
-  while (nextUrl) {
-    const res = await axios.get(nextUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const { value = [], '@odata.nextLink': nextLink } = res.data;
-    allItems.push(...value);
-    nextUrl = nextLink || null;
-  }
-
-  if (allItems.length === 0) {
-    console.warn(`[SharePoint] List '${name}' returned 0 items`);
-    return [];
-  }
-
-  const { nameField, emailField } = resolveFieldNames(allItems, columnMap);
-
-  if (!emailField) {
-    const available = Object.keys(allItems[0]?.fields || {}).join(', ');
+  if (!azureUrl) {
     throw new Error(
-      `Could not detect an Email field in SharePoint list '${name}'. Available fields: ${available}`
+      'AZURE_SHAREPOINT_FUNCTION_URL is not configured. SharePoint contact fetching requires the SharePoint-fetch Azure Function app to be deployed.'
     );
   }
 
-  // Create a reverse column map (internalName -> displayName)
-  const reverseColumnMap = new Map();
-  for (const [dispName, intName] of columnMap.entries()) {
-    reverseColumnMap.set(intName, dispName);
+  let res;
+  try {
+    res = await axios.post(
+      `${azureUrl.replace(/\/+$/, '')}/api/sharepoint/contacts`,
+      { configId },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-azure-secret': secretKey || '',
+        },
+        timeout: 55000,
+      }
+    );
+  } catch (err) {
+    const detail = err.response?.data?.error || err.message;
+    throw new Error(`Failed to fetch SharePoint contacts for '${name}' via Azure Function: ${detail}`);
   }
 
-  const contacts = allItems
-    .map((item) => {
-      const fields = item.fields || {};
-      let name_v = nameField ? String(fields[nameField] || '').trim() : '';
-      if (!name_v && fields.Title) name_v = String(fields.Title).trim();
-      const email = emailField ? String(fields[emailField] || '').trim().toLowerCase() : '';
-      const modifiedAt = item.lastModifiedDateTime || fields.Modified || new Date().toISOString();
-
-      // Transform rawFields so internal names like field_0, field_1 are replaced by real SharePoint display names
-      const friendlyFields = {};
-      for (const [key, val] of Object.entries(fields)) {
-        if (key.startsWith('@') || key === 'id' || key === 'ContentType' || key === 'Attachments' || key.endsWith('LookupId')) continue;
-        const displayName = reverseColumnMap.get(key) || key;
-        friendlyFields[displayName] = val;
-      }
-
-      return { name: name_v, email, modifiedAt, itemId: item.id, rawFields: friendlyFields };
-    })
-    .filter((c) => c.email);
-
-  console.log(`[SharePoint] Fetched ${contacts.length} contacts from '${name}' using emailField '${emailField}' and nameField '${nameField}'`);
-  return contacts;
+  const { contacts = [], rawItemCount = contacts.length } = res.data || {};
+  console.log(`[SharePoint] Fetched ${contacts.length} contacts with a valid email out of ${rawItemCount} raw records from '${name}' via Azure Function`);
+  return { contacts, rawItemCount };
 }
 
 /**
