@@ -6,6 +6,8 @@ async function testAi() {
   console.log('Endpoint:', process.env.AZURE_OPENAI_ENDPOINT);
   console.log('Deployment:', process.env.AZURE_OPENAI_CHAT_DEPLOYMENT);
 
+
+
   const sampleContact = {
     Name: 'Jane Doe',
     Title: 'VP of Technology',
