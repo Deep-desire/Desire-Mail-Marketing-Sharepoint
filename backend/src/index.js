@@ -401,11 +401,18 @@ async function reconcileContacts(allContacts, syncMode, configId = null, templat
 
 /**
  * GET /sharepoint/configs
- * Returns all active SharePoint list configurations (clientSecret masked).
+ * Returns SharePoint list configurations (clientSecret masked).
+ * Supports ?activeOnly=true query param to only return enabled lists.
  */
 apiRouter.get('/sharepoint/configs', catchAsync(async (req, res) => {
   await authenticate(req);
+  const { activeOnly } = req.query;
+  const where = {};
+  if (activeOnly === 'true' || activeOnly === '1') {
+    where.isActive = true;
+  }
   const configs = await prisma.sharePointConfig.findMany({
+    where,
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
   });
   // Mask client secrets before sending to frontend
@@ -422,7 +429,7 @@ apiRouter.get('/sharepoint/configs', catchAsync(async (req, res) => {
  */
 apiRouter.post('/sharepoint/configs', catchAsync(async (req, res) => {
   await authenticate(req);
-  const { name, siteId, listId, tenantId, clientId, clientSecret, sortOrder } = req.body;
+  const { name, siteId, listId, tenantId, clientId, clientSecret, isActive, sortOrder } = req.body;
   if (!name || !siteId || !listId) {
     return res.status(400).json({ message: 'name, siteId, and listId are required' });
   }
@@ -434,6 +441,7 @@ apiRouter.post('/sharepoint/configs', catchAsync(async (req, res) => {
       tenantId: tenantId?.trim() || null,
       clientId: clientId?.trim() || null,
       clientSecret: clientSecret?.trim() || null,
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
       sortOrder: typeof sortOrder === 'number' ? sortOrder : 0,
     },
   });

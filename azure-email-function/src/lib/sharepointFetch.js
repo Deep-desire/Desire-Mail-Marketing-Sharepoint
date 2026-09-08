@@ -255,7 +255,32 @@ async function fetchAllSharePointContacts(configId, context) {
       for (const [key, val] of Object.entries(fields)) {
         if (key.startsWith('@') || key === 'id' || key === 'ContentType' || key === 'Attachments' || key.endsWith('LookupId')) continue;
         const displayName = reverseColumnMap.get(key) || key;
-        friendlyFields[displayName] = val;
+
+        // Clean complex SharePoint field types (Hyperlink/Picture { Url, Description }, Lookup, Person, Arrays)
+        if (val && typeof val === 'object') {
+          if (val.Url || val.url) {
+            friendlyFields[displayName] = val.Url || val.url;
+          } else if (val.Description || val.description) {
+            friendlyFields[displayName] = val.Description || val.description;
+          } else if (val.LookupValue !== undefined) {
+            friendlyFields[displayName] = val.LookupValue;
+          } else if (val.Title !== undefined) {
+            friendlyFields[displayName] = val.Title;
+          } else if (Array.isArray(val)) {
+            friendlyFields[displayName] = val
+              .map((item) => {
+                if (item && typeof item === 'object') {
+                  return item.LookupValue || item.Url || item.Title || item.Description || JSON.stringify(item);
+                }
+                return String(item);
+              })
+              .join(', ');
+          } else {
+            friendlyFields[displayName] = val;
+          }
+        } else {
+          friendlyFields[displayName] = val;
+        }
       }
 
       return { name: name_v, email, modifiedAt, itemId: item.id, rawFields: friendlyFields };

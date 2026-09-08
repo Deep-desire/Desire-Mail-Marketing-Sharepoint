@@ -18,6 +18,7 @@ interface FormState {
   tenantId: string;
   clientId: string;
   clientSecret: string;
+  isActive: boolean;
   sortOrder: number;
 }
 
@@ -28,6 +29,7 @@ const emptyForm: FormState = {
   tenantId: '',
   clientId: '',
   clientSecret: '',
+  isActive: true,
   sortOrder: 0,
 };
 
@@ -51,6 +53,7 @@ function ConfigModal({
         tenantId: initial.tenantId || '',
         clientId: initial.clientId || '',
         clientSecret: '', // never pre-fill the secret
+        isActive: initial.isActive !== undefined ? initial.isActive : true,
         sortOrder: initial.sortOrder,
       }
       : emptyForm
@@ -60,7 +63,7 @@ function ConfigModal({
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showSecret, setShowSecret] = useState(false);
 
-  const field = (key: keyof FormState, value: string | number) =>
+  const field = (key: keyof FormState, value: string | number | boolean) =>
     setForm((f) => ({ ...f, [key]: value }));
 
   const handleTest = async () => {
@@ -94,6 +97,7 @@ function ConfigModal({
         tenantId: form.tenantId.trim() || undefined,
         clientId: form.clientId.trim() || undefined,
         clientSecret: form.clientSecret.trim() || undefined,
+        isActive: Boolean(form.isActive),
         sortOrder: Number(form.sortOrder) || 0,
       };
 
@@ -188,6 +192,39 @@ function ConfigModal({
                   placeholder='e.g. 6a0c9cb8-aa15-48f4-b242-62041a87f29a'
                   className="w-full bg-white border border-gray-300 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-xl px-4 py-2.5 text-gray-900 text-sm outline-none transition placeholder-gray-400 font-mono shadow-sm"
                 />
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div>
+                  <label htmlFor="config-is-active-switch" className="text-sm font-semibold text-gray-800 block cursor-pointer">
+                    List Status (Visible in Uploads)
+                  </label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {form.isActive
+                      ? 'Enabled — this list is active and selectable in the Uploads section.'
+                      : 'Disabled — this list is hidden from the Uploads section dropdown.'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.isActive}
+                    id="config-is-active-switch"
+                    onClick={() => field('isActive', !form.isActive)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500/30 ${
+                      form.isActive ? 'bg-emerald-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        form.isActive ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-xs font-semibold ${form.isActive ? 'text-emerald-700' : 'text-gray-500'}`}>
+                    {form.isActive ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Sort Order</label>
@@ -455,21 +492,36 @@ export default function SharePointSettings() {
         ) : (
           <div className="divide-y divide-gray-100">
             {/* Table header */}
-            <div className="grid grid-cols-[2fr_3fr_auto_auto_auto] gap-4 px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50 border-b border-gray-200">
+            <div className="grid grid-cols-[2.2fr_3fr_auto_auto_auto] gap-4 px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50 border-b border-gray-200">
               <span>Name</span>
               <span>Site / List</span>
-              <span>Status</span>
+              <span>Status (Uploads)</span>
               <span>Connection</span>
               <span className="text-right">Actions</span>
             </div>
 
             {configs.map((cfg) => {
               const result = testResults[cfg.id];
+              const isToggling = togglingId === cfg.id;
               return (
-                <div key={cfg.id} className={`grid grid-cols-[2fr_3fr_auto_auto_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50/30 transition-colors ${!cfg.isActive ? 'opacity-50' : ''}`}>
+                <div
+                  key={cfg.id}
+                  className={`grid grid-cols-[2.2fr_3fr_auto_auto_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50/50 transition-colors ${
+                    !cfg.isActive ? 'bg-gray-50/30' : ''
+                  }`}
+                >
                   {/* Name */}
                   <div>
-                    <p className="text-sm font-bold text-gray-900">{cfg.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className={`text-sm font-bold ${cfg.isActive ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {cfg.name}
+                      </p>
+                      {!cfg.isActive && (
+                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                          Hidden
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 font-medium mt-0.5">Order: {cfg.sortOrder}</p>
                   </div>
 
@@ -477,11 +529,15 @@ export default function SharePointSettings() {
                   <div className="space-y-0.5 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <Link className="w-3 h-3 text-gray-400 shrink-0" />
-                      <p className="text-xs text-gray-500 font-mono truncate" title={cfg.siteId}>{cfg.siteId}</p>
+                      <p className={`text-xs font-mono truncate ${cfg.isActive ? 'text-gray-500' : 'text-gray-400'}`} title={cfg.siteId}>
+                        {cfg.siteId}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Database className="w-3 h-3 text-gray-400 shrink-0" />
-                      <p className="text-xs text-gray-500 font-mono truncate" title={cfg.listId}>{cfg.listId}</p>
+                      <p className={`text-xs font-mono truncate ${cfg.isActive ? 'text-gray-500' : 'text-gray-400'}`} title={cfg.listId}>
+                        {cfg.listId}
+                      </p>
                     </div>
                     {cfg.tenantId && (
                       <div className="flex items-center gap-1.5">
@@ -491,20 +547,54 @@ export default function SharePointSettings() {
                     )}
                   </div>
 
-                  {/* Active toggle */}
-                  <div>
+                  {/* Active / Inactive Toggle Switch */}
+                  <div className="flex items-center gap-2.5">
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={cfg.isActive}
+                      id={`toggle-list-${cfg.id}`}
                       onClick={() => handleToggleActive(cfg)}
-                      disabled={togglingId === cfg.id}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${cfg.isActive
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-750 hover:border-red-200'
-                          : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-emerald-50 hover:text-emerald-750 hover:border-emerald-200'
-                        }`}
+                      disabled={isToggling}
+                      title={cfg.isActive ? 'Click to disable (hide from Uploads dropdown)' : 'Click to enable (show in Uploads dropdown)'}
+                      className={`group relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500/30 disabled:opacity-60 disabled:cursor-not-allowed ${
+                        cfg.isActive ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-gray-300 hover:bg-gray-400'
+                      }`}
                     >
-                      {cfg.isActive
-                        ? <><CheckCircle className="w-3.5 h-3.5" /> Active</>
-                        : <><XCircle className="w-3.5 h-3.5" /> Disabled</>}
+                      <span className="sr-only">{cfg.isActive ? 'Disable list' : 'Enable list'}</span>
+                      <span
+                        className={`pointer-events-none flex items-center justify-center h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                          cfg.isActive ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      >
+                        {isToggling ? (
+                          <RefreshCw className="w-2.5 h-2.5 text-brand-600 animate-spin" />
+                        ) : cfg.isActive ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                        )}
+                      </span>
                     </button>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                        cfg.isActive
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                          : 'bg-gray-100 text-gray-500 border-gray-200'
+                      }`}
+                    >
+                      {cfg.isActive ? (
+                        <>
+                          <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>Active</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3 h-3 text-gray-400 shrink-0" />
+                          <span>Disabled</span>
+                        </>
+                      )}
+                    </span>
                   </div>
 
                   {/* Test result */}

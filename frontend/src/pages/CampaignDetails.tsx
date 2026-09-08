@@ -24,6 +24,7 @@ import StatusBadge from '../components/StatusBadge';
 import StatsCard from '../components/StatsCard';
 import { uploadApi } from '../api/upload.api';
 import { Campaign, Recipient } from '../types';
+import { formatFieldValue } from './SharePointContacts';
 
 const columnHelper = createColumnHelper<Recipient>();
 const activeSendingCampaigns = new Set<string>();
@@ -547,17 +548,17 @@ export default function CampaignDetails() {
                   <div className="col-span-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
                     {Object.entries(viewRecipient.rawFields).map(([k, v]) => {
                       if (!v) return null;
-                      const valStr = String(v);
-                      const isLink = valStr.startsWith('http');
+                      const formatted = formatFieldValue(v);
+                      if (formatted.text === '—') return null;
                       return (
                         <div key={k} className="flex items-center gap-1">
                           <span className="font-semibold text-gray-500">{k}:</span>
-                          {isLink ? (
-                            <a href={valStr} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800">
-                              {valStr}
+                          {formatted.url ? (
+                            <a href={formatted.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800 truncate max-w-xs">
+                              {formatted.text}
                             </a>
                           ) : (
-                            <span className="text-gray-800 font-medium">{valStr}</span>
+                            <span className="text-gray-800 font-medium">{formatted.text}</span>
                           )}
                         </div>
                       );

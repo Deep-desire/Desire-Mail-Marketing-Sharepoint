@@ -3,9 +3,9 @@ import { Template, Campaign, SPContactsResponse, SharePointConfig, Recipient } f
 
 export const uploadApi = {
   // ── SharePoint Config CRUD ──────────────────────────────────────────────
-  /** Get all SharePoint list configurations */
-  getSharePointConfigs: () =>
-    api.get<{ configs: SharePointConfig[] }>('/sharepoint/configs'),
+  /** Get SharePoint list configurations (optionally filtered to active only) */
+  getSharePointConfigs: (params?: { activeOnly?: boolean }) =>
+    api.get<{ configs: SharePointConfig[] }>('/sharepoint/configs', { params }),
 
   /** Create a new SharePoint list configuration */
   createSharePointConfig: (data: {
@@ -15,6 +15,7 @@ export const uploadApi = {
     tenantId?: string;
     clientId?: string;
     clientSecret?: string;
+    isActive?: boolean;
     sortOrder?: number;
   }) => api.post<SharePointConfig>('/sharepoint/configs', data),
 

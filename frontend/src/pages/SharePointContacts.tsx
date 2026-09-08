@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronRight, Edit,
+  RefreshCw, Play, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Edit,
   CheckCircle, AlertCircle, XCircle, MinusCircle,
   Users, Mail, Send, History, Trash2, X, AlertTriangle,
-  Calendar, Layers, Search, SlidersHorizontal, Clock, Sparkles, Wand2, Filter,
+  Calendar, Layers, Search, SlidersHorizontal, Clock, Sparkles, Wand2, Filter, ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { uploadApi } from '../api/upload.api';
@@ -35,6 +35,84 @@ const SYSTEM_COLUMNS = new Set([
 const NAME_CANDIDATES = new Set(['name', 'title', 'contactname', 'fullname', 'firstname']);
 const EMAIL_CANDIDATES = new Set(['email', 'emailaddress', 'workemail', 'email_x0020_address', 'work_x0020_email']);
 
+/**
+ * Extracts and formats display text and optional hyperlink URL from complex SharePoint fields
+ * (such as Hyperlink/Picture { Url, Description }, Lookup, Person, or Arrays).
+ */
+export function formatFieldValue(val: any): { text: string; url?: string } {
+  if (val === undefined || val === null || val === '') {
+    return { text: '—' };
+  }
+
+  // Handle SharePoint objects
+  if (typeof val === 'object') {
+    // Hyperlink column: { Url: "...", Description: "..." }
+    if (val.Url || val.url) {
+      const u = String(val.Url || val.url).trim();
+      const desc = String(val.Description || val.description || '').trim();
+      return {
+        text: desc || u,
+        url: /^https?:\/\//i.test(u) ? u : (desc && /^https?:\/\//i.test(desc) ? desc : (u ? `https://${u}` : undefined)),
+      };
+    }
+    if (val.Description || val.description) {
+      const d = String(val.Description || val.description).trim();
+      return {
+        text: d,
+        url: /^https?:\/\//i.test(d) ? d : undefined,
+      };
+    }
+    if (val.LookupValue !== undefined) {
+      return { text: String(val.LookupValue) };
+    }
+    if (val.Title !== undefined) {
+      return { text: String(val.Title) };
+    }
+    if (Array.isArray(val)) {
+      const items = val.map((item) => {
+        if (item && typeof item === 'object') {
+          return item.LookupValue || item.Url || item.Title || item.Description || JSON.stringify(item);
+        }
+        return String(item);
+      });
+      return { text: items.join(', ') };
+    }
+    return { text: JSON.stringify(val) };
+  }
+
+  const str = String(val).trim();
+
+  // If string contains JSON-encoded SharePoint URL object: {"Description":"...","Url":"..."}
+  if (str.startsWith('{') && str.endsWith('}') && (str.includes('"Url"') || str.includes('"Description"') || str.includes('"url"') || str.includes('"description"'))) {
+    try {
+      const parsed = JSON.parse(str);
+      if (parsed.Url || parsed.url) {
+        const u = String(parsed.Url || parsed.url).trim();
+        const desc = String(parsed.Description || parsed.description || '').trim();
+        return {
+          text: desc || u,
+          url: /^https?:\/\//i.test(u) ? u : `https://${u}`,
+        };
+      }
+      if (parsed.Description || parsed.description) {
+        const d = String(parsed.Description || parsed.description).trim();
+        return {
+          text: d,
+          url: /^https?:\/\//i.test(d) ? d : undefined,
+        };
+      }
+    } catch {
+      // ignore parse error, fallback to string
+    }
+  }
+
+  if (/^https?:\/\//i.test(str)) {
+    return { text: str, url: str };
+  }
+
+  return { text: str };
+}
+
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 function StatPill({
@@ -61,7 +139,15 @@ export default function SharePointContacts() {
   const [contacts, setContacts] = useState<SPContact[]>([]);
   const [stats, setStats] = useState({ total: 0, validCount: 0, invalidCount: 0, duplicateCount: 0, unsubscribedCount: 0 });
   const [rawItemCount, setRawItemCount] = useState<number | null>(null);
-  const [showAllContacts, setShowAllContacts] = useState(false);
+  const [displayLimit, setDisplayLimit] = useState<number | 'all'>('all');
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollTable = (direction: 'left' | 'right') => {
+    if (tableContainerRef.current) {
+      const offset = direction === 'left' ? -350 : 350;
+      tableContainerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
   const [filterStatus, setFilterStatus] = useState<'all' | 'valid' | 'invalid' | 'duplicate' | 'unsubscribed'>('all');
   const [syncMode, setSyncMode] = useState<'incremental' | 'full'>('incremental');
   const [searchQuery, setSearchQuery] = useState('');
@@ -212,13 +298,20 @@ export default function SharePointContacts() {
         }
       })
       .catch(() => { });
-    // Load SharePoint list configs
+    // Load SharePoint list configs (only active lists for Uploads/Contacts)
     setLoadingConfigs(true);
-    uploadApi.getSharePointConfigs()
+    uploadApi.getSharePointConfigs({ activeOnly: true })
       .then((res) => {
-        const active = res.data.configs.filter((c) => c.isActive);
+        const active = (res.data.configs || []).filter((c) => c.isActive !== false);
         setSpConfigs(active);
-        if (active.length > 0) setSelectedConfigId(active[0].id);
+        if (active.length > 0) {
+          setSelectedConfigId((curr) => {
+            const stillActive = active.some((c) => c.id === curr);
+            return stillActive ? curr : active[0].id;
+          });
+        } else {
+          setSelectedConfigId('');
+        }
       })
       .catch(() => toast.error('Failed to load SharePoint list configurations'))
       .finally(() => setLoadingConfigs(false));
@@ -590,19 +683,21 @@ export default function SharePointContacts() {
           if (!filterVal || !filterVal.trim()) continue;
           const cleanFilter = filterVal.trim().toLowerCase();
 
-          let cellValue: string | number = '';
+          let cellValue = '';
           if (colName === mappedNameField) {
             cellValue = c.name || '';
           } else if (colName === mappedEmailField) {
             cellValue = c.email || '';
           } else {
             const val = c.rawFields?.[colName];
-            if (val !== undefined && val !== null) {
-              cellValue = typeof val === 'object' ? JSON.stringify(val) : String(val);
+            const formatted = formatFieldValue(val);
+            cellValue = formatted.text !== '—' ? formatted.text : '';
+            if (formatted.url && !cellValue.includes(formatted.url)) {
+              cellValue = `${cellValue} ${formatted.url}`;
             }
           }
 
-          if (!String(cellValue).toLowerCase().includes(cleanFilter)) {
+          if (!cellValue.toLowerCase().includes(cleanFilter)) {
             return false;
           }
         }
@@ -611,27 +706,37 @@ export default function SharePointContacts() {
   }, [contacts, filterStatus, searchQuery, columnFilters, hasActiveColumnFilters, mappedNameField, mappedEmailField]);
 
   const visibleContacts = useMemo(() => {
-    return filteredContacts.slice(0, showAllContacts ? undefined : 20);
-  }, [filteredContacts, showAllContacts]);
+    if (displayLimit === 'all') return filteredContacts;
+    return filteredContacts.slice(0, displayLimit);
+  }, [filteredContacts, displayLimit]);
 
-  const visibleValidContacts = visibleContacts.filter(c => c.status === 'valid');
-  const isAllVisibleSelected = visibleValidContacts.length > 0 && visibleValidContacts.every(c => c.itemId && selectedItemIds.has(c.itemId));
-  const isSomeVisibleSelected = visibleValidContacts.length > 0 && visibleValidContacts.some(c => c.itemId && selectedItemIds.has(c.itemId));
+  const filteredValidContacts = useMemo(() => {
+    return filteredContacts.filter((c) => c.status === 'valid');
+  }, [filteredContacts]);
 
-  const handleToggleAllVisible = () => {
-    setSelectedItemIds(prev => {
-      const next = new Set(prev);
-      if (isAllVisibleSelected) {
-        visibleValidContacts.forEach(c => {
+  const isAllFilteredSelected = filteredValidContacts.length > 0 && filteredValidContacts.every((c) => c.itemId && selectedItemIds.has(c.itemId));
+  const isSomeFilteredSelected = filteredValidContacts.length > 0 && filteredValidContacts.some((c) => c.itemId && selectedItemIds.has(c.itemId));
+
+  const handleToggleAll = () => {
+    if (isAllFilteredSelected) {
+      setSelectedItemIds((prev) => {
+        const next = new Set(prev);
+        filteredValidContacts.forEach((c) => {
           if (c.itemId) next.delete(c.itemId);
         });
-      } else {
-        visibleValidContacts.forEach(c => {
+        return next;
+      });
+      toast.success(`Deselected all ${filteredValidContacts.length} contacts`, { id: 'selection-toggle-toast' });
+    } else {
+      setSelectedItemIds((prev) => {
+        const next = new Set(prev);
+        filteredValidContacts.forEach((c) => {
           if (c.itemId) next.add(c.itemId);
         });
-      }
-      return next;
-    });
+        return next;
+      });
+      toast.success(`Selected all ${filteredValidContacts.length} valid contacts`, { id: 'selection-toggle-toast' });
+    }
   };
 
   const selectedValidCount = filteredContacts.filter(
@@ -669,7 +774,8 @@ export default function SharePointContacts() {
     toast.success(
       isCumulative
         ? `Added range ${from}-${to} (${rangeValidIds.length} valid contacts added)`
-        : `Selected range ${from}-${to} (${rangeValidIds.length} valid contacts selected)`
+        : `Selected range ${from}-${to} (${rangeValidIds.length} valid contacts selected)`,
+      { id: 'selection-toggle-toast' }
     );
   };
 
@@ -953,9 +1059,13 @@ export default function SharePointContacts() {
                   <button
                     type="button"
                     onClick={() => {
-                      const allValid = new Set(contacts.filter(c => c.status === 'valid' && c.itemId).map(c => c.itemId!));
-                      setSelectedItemIds(allValid);
-                      toast.success(`Selected all ${allValid.size} valid contacts`);
+                      const allValid = new Set(filteredContacts.filter(c => c.status === 'valid' && c.itemId).map(c => c.itemId!));
+                      setSelectedItemIds(prev => {
+                        const next = new Set(prev);
+                        allValid.forEach(id => next.add(id));
+                        return next;
+                      });
+                      toast.success(`Selected all ${allValid.size} valid contacts`, { id: 'selection-toggle-toast' });
                     }}
                     className="text-xs text-brand-600 hover:text-brand-700 font-bold transition-colors"
                   >
@@ -966,7 +1076,7 @@ export default function SharePointContacts() {
                     type="button"
                     onClick={() => {
                       setSelectedItemIds(new Set());
-                      toast.success('Cleared all selections');
+                      toast.success('Cleared all selections', { id: 'selection-toggle-toast' });
                     }}
                     className="text-xs text-gray-500 hover:text-gray-600 font-bold transition-colors"
                   >
@@ -1019,23 +1129,30 @@ export default function SharePointContacts() {
             </div>
           )}
 
-          {/* Contacts table preview */}
+            {/* Contacts table preview */}
           <div className="glass-card p-6 overflow-hidden bg-white border border-gray-200 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-              <h2 className="section-title flex items-center gap-2">
-                <Mail className="w-4 h-4 text-brand-600" />
-                Contacts Preview
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="section-title flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-brand-600" />
+                  Contacts Preview
+                </h2>
+                {contacts.length > 0 && (
+                  <span className="text-xs bg-gray-100 text-gray-700 font-semibold px-2.5 py-0.5 rounded-full border border-gray-200">
+                    {filteredTotal} records
+                  </span>
+                )}
+              </div>
               {contacts.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {/* Search Input */}
-                  <div className="relative w-full sm:w-56">
+                  <div className="relative w-full sm:w-52">
                     <input
                       type="text"
                       placeholder="Search name or email..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 pl-8 text-xs text-gray-950 placeholder-gray-400 focus:outline-none focus:border-brand-500 w-full"
+                      className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 pl-8 text-xs text-gray-950 placeholder-gray-400 focus:outline-none focus:border-brand-500 w-full shadow-xs"
                     />
                     <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     {searchQuery && (
@@ -1049,12 +1166,12 @@ export default function SharePointContacts() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-500">Filter:</label>
+                    <label className="text-xs text-gray-500 font-medium">Filter:</label>
                     <select
                       id="contact-filter-select"
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value as any)}
-                      className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:border-brand-500 shadow-sm h-[28px]"
+                      className="bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:border-brand-500 shadow-xs h-[28px]"
                     >
                       <option value="all">All ({stats.total})</option>
                       <option value="valid">Valid ({stats.validCount})</option>
@@ -1064,14 +1181,62 @@ export default function SharePointContacts() {
                     </select>
                   </div>
 
+                  {/* Rows to View selector */}
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <span className="hidden sm:inline font-medium">View:</span>
+                    <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-[11px] font-semibold shadow-2xs">
+                      {[50, 100, 500, 'all'].map((limit) => {
+                        const isSelected = displayLimit === limit;
+                        const label = limit === 'all' ? `All (${filteredTotal})` : limit;
+                        return (
+                          <button
+                            key={String(limit)}
+                            type="button"
+                            onClick={() => setDisplayLimit(limit as any)}
+                            className={`px-2 py-0.5 rounded transition ${
+                              isSelected
+                                ? 'bg-white text-brand-700 shadow-xs font-bold'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Horizontal Scroll Helper Buttons */}
+                  {selectedColumns.length > 3 && (
+                    <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => scrollTable('left')}
+                        className="p-1 hover:bg-white rounded text-gray-600 hover:text-gray-900 transition shadow-2xs"
+                        title="Scroll columns left"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] text-gray-500 font-semibold px-1 select-none">Cols</span>
+                      <button
+                        type="button"
+                        onClick={() => scrollTable('right')}
+                        className="p-1 hover:bg-white rounded text-gray-600 hover:text-gray-900 transition shadow-2xs"
+                        title="Scroll columns right"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Clear Column Filters Button */}
                   {hasActiveColumnFilters && (
                     <button
                       onClick={handleClearColumnFilters}
-                      className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg px-3 py-1.5 text-xs text-amber-700 font-semibold shadow-sm transition-all focus:outline-none h-[28px] select-none"
+                      className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg px-3 py-1.5 text-xs text-amber-700 font-semibold shadow-xs transition-all focus:outline-none h-[28px] select-none"
                     >
                       <Filter className="w-3.5 h-3.5 text-amber-600" />
-                      Clear Column Filters
+                      Clear Filters
                     </button>
                   )}
 
@@ -1080,7 +1245,7 @@ export default function SharePointContacts() {
                     <div className="relative">
                       <button
                         onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
-                        className="flex items-center gap-1.5 bg-white border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 text-xs text-gray-700 font-semibold shadow-sm transition-all focus:outline-none h-[28px] select-none"
+                        className="flex items-center gap-1.5 bg-white border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-1.5 text-xs text-gray-700 font-semibold shadow-xs transition-all focus:outline-none h-[28px] select-none"
                       >
                         <SlidersHorizontal className="w-3.5 h-3.5" />
                         Columns
@@ -1159,45 +1324,56 @@ export default function SharePointContacts() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto border border-gray-200 rounded-xl">
-                  <table className="w-full table-fixed min-w-[700px]">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50">
-                        <th className="px-4 py-3 w-10 text-center">
+                {/* Scrollable Table Viewport with Sticky Headers & Frozen Left/Right Columns */}
+                <div
+                  ref={tableContainerRef}
+                  className="overflow-x-auto overflow-y-auto max-h-[620px] border border-gray-200 rounded-xl relative bg-white shadow-inner"
+                >
+                  <table className="min-w-full w-max text-left border-collapse">
+                    <thead className="sticky top-0 z-20">
+                      {/* Row 1: Column Headers */}
+                      <tr className="border-b border-gray-200 text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-50 shadow-xs">
+                        {/* Sticky Checkbox th */}
+                        <th className="sticky left-0 top-0 z-30 bg-gray-50 px-4 py-3 w-10 min-w-[40px] text-center border-r border-gray-200/80 shadow-[1px_0_0_0_#E5E7EB]">
                           <input
                             type="checkbox"
-                            checked={isAllVisibleSelected}
+                            checked={isAllFilteredSelected}
                             ref={input => {
                               if (input) {
-                                input.indeterminate = isSomeVisibleSelected && !isAllVisibleSelected;
+                                input.indeterminate = isSomeFilteredSelected && !isAllFilteredSelected;
                               }
                             }}
-                            onChange={handleToggleAllVisible}
+                            onChange={handleToggleAll}
                             className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer border-gray-300"
+                            title={isAllFilteredSelected ? "Deselect all records in list" : "Select all records in list"}
                           />
                         </th>
-                        <th className="px-4 py-3 w-14">#</th>
+                        {/* Sticky Index # th */}
+                        <th className="sticky left-10 top-0 z-30 bg-gray-50 px-4 py-3 w-14 min-w-[56px] text-center border-r border-gray-200 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                          #
+                        </th>
+                        {/* Dynamic Columns */}
                         {selectedColumns.map((colName) => {
-                          let widthClass = "w-48";
+                          let widthClass = "min-w-[180px] max-w-[280px]";
                           const isNameField = colName === mappedNameField;
                           const isEmailField = colName === mappedEmailField;
 
                           if (isNameField) {
-                            widthClass = "w-48";
+                            widthClass = "min-w-[200px] max-w-[300px]";
                           } else if (isEmailField) {
-                            widthClass = "w-60";
+                            widthClass = "min-w-[240px] max-w-[340px]";
                           }
                           return (
-                            <th key={colName} className={`px-4 py-3 ${widthClass} uppercase truncate`} title={colName.replace(/_x0020_/g, ' ')}>
+                            <th key={colName} className={`px-4 py-3 ${widthClass} uppercase truncate border-r border-gray-100 bg-gray-50`} title={colName.replace(/_x0020_/g, ' ')}>
                               <div className="flex items-center gap-1.5">
-                                <span>{colName.replace(/_x0020_/g, ' ')}</span>
+                                <span className="truncate">{colName.replace(/_x0020_/g, ' ')}</span>
                                 {isNameField && (
-                                  <span className="bg-brand-50 text-brand-600 text-[9px] px-1.5 py-0.5 rounded-md font-bold lowercase first-letter:uppercase">
+                                  <span className="bg-brand-50 text-brand-600 text-[9px] px-1.5 py-0.5 rounded-md font-bold lowercase first-letter:uppercase shrink-0">
                                     Name
                                   </span>
                                 )}
                                 {isEmailField && (
-                                  <span className="bg-emerald-50 text-emerald-600 text-[9px] px-1.5 py-0.5 rounded-md font-bold lowercase first-letter:uppercase">
+                                  <span className="bg-emerald-50 text-emerald-600 text-[9px] px-1.5 py-0.5 rounded-md font-bold lowercase first-letter:uppercase shrink-0">
                                     Email
                                   </span>
                                 )}
@@ -1205,25 +1381,29 @@ export default function SharePointContacts() {
                             </th>
                           );
                         })}
-                        <th className="px-4 py-3 w-32">Status</th>
-                        <th className="px-4 py-3 w-28 text-right">Actions</th>
+                        {/* Status Column */}
+                        <th className="px-4 py-3 min-w-[120px] w-32 bg-gray-50 border-r border-gray-100">Status</th>
+                        {/* Sticky Actions Column */}
+                        <th className="sticky right-0 top-0 z-30 bg-gray-50 px-4 py-3 min-w-[100px] w-28 text-right border-l border-gray-200 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                          Actions
+                        </th>
                       </tr>
 
-                      {/* Per-Column Interactive Filters Row */}
-                      <tr className="bg-gray-100/70 border-b border-gray-200">
-                        <td className="px-4 py-1 text-center w-10"></td>
-                        <td className="px-4 py-1 w-14"></td>
+                      {/* Row 2: Per-Column Interactive Filters Row */}
+                      <tr className="border-b border-gray-200 bg-gray-100 shadow-xs">
+                        <td className="sticky left-0 top-[41px] z-30 bg-gray-100 px-4 py-1.5 text-center w-10 min-w-[40px] border-r border-gray-200/80 shadow-[1px_0_0_0_#E5E7EB]"></td>
+                        <td className="sticky left-10 top-[41px] z-30 bg-gray-100 px-4 py-1.5 w-14 min-w-[56px] text-center border-r border-gray-200 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]"></td>
                         {selectedColumns.map((colName) => {
                           const filterVal = columnFilters[colName] || '';
                           return (
-                            <td key={`filter-${colName}`} className="px-2 py-1.5">
+                            <td key={`filter-${colName}`} className="px-2 py-1.5 bg-gray-100 border-r border-gray-200/60">
                               <div className="relative flex items-center">
                                 <input
                                   type="text"
                                   placeholder={`Filter ${colName.replace(/_x0020_/g, ' ')}...`}
                                   value={filterVal}
                                   onChange={(e) => handleColumnFilterChange(colName, e.target.value)}
-                                  className="w-full bg-white border border-gray-300 focus:border-brand-500 rounded-md px-2 py-1 pr-6 text-[11px] text-gray-800 placeholder-gray-400 focus:outline-none shadow-sm font-normal"
+                                  className="w-full bg-white border border-gray-300 focus:border-brand-500 rounded-md px-2 py-1 pr-6 text-[11px] text-gray-800 placeholder-gray-400 focus:outline-none shadow-xs font-normal"
                                 />
                                 {filterVal && (
                                   <button
@@ -1238,8 +1418,8 @@ export default function SharePointContacts() {
                             </td>
                           );
                         })}
-                        <td className="px-4 py-1 w-32"></td>
-                        <td className="px-4 py-1 w-28 text-right">
+                        <td className="px-4 py-1.5 min-w-[120px] w-32 bg-gray-100 border-r border-gray-200/60"></td>
+                        <td className="sticky right-0 top-[41px] z-30 bg-gray-100 px-4 py-1.5 min-w-[100px] w-28 text-right border-l border-gray-200 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                           {hasActiveColumnFilters && (
                             <button
                               type="button"
@@ -1258,8 +1438,9 @@ export default function SharePointContacts() {
                         const isEditing = editingIndex === actualIndex;
 
                         return (
-                          <tr key={idx} className="hover:bg-gray-50/40 transition-colors group">
-                            <td className="px-4 py-3 text-center w-10">
+                          <tr key={idx} className="hover:bg-brand-50/30 transition-colors group">
+                            {/* Sticky Checkbox td */}
+                            <td className="sticky left-0 z-10 bg-white group-hover:bg-[#f8f9fc] px-4 py-3 text-center w-10 min-w-[40px] border-r border-gray-100 shadow-[1px_0_0_0_#E5E7EB]">
                               <input
                                 type="checkbox"
                                 checked={c.itemId ? selectedItemIds.has(c.itemId) : false}
@@ -1279,14 +1460,18 @@ export default function SharePointContacts() {
                                 className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed"
                               />
                             </td>
-                            <td className="px-4 py-3 text-gray-400 text-xs">{actualIndex + 1}</td>
+                            {/* Sticky Index # td */}
+                            <td className="sticky left-10 z-10 bg-white group-hover:bg-[#f8f9fc] px-4 py-3 text-gray-400 text-xs text-center w-14 min-w-[56px] border-r border-gray-200 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                              {actualIndex + 1}
+                            </td>
+                            {/* Dynamic Columns td */}
                             {selectedColumns.map((colName) => {
                               const isNameField = colName === mappedNameField;
                               const isEmailField = colName === mappedEmailField;
 
                               if (isNameField) {
                                 return (
-                                  <td key={colName} className="px-4 py-3 font-medium text-gray-900 truncate" title={c.name}>
+                                  <td key={colName} className="px-4 py-3 font-semibold text-gray-900 truncate border-r border-gray-100 min-w-[200px] max-w-[300px]" title={c.name}>
                                     {c.name || '—'}
                                   </td>
                                 );
@@ -1294,45 +1479,58 @@ export default function SharePointContacts() {
 
                               if (isEmailField) {
                                 return (
-                                  <td key={colName} className="px-4 py-3 font-mono text-xs truncate" title={c.email}>
-                                    <span className={c.status === 'invalid' ? 'text-red-600 font-bold' : 'text-gray-500'}>{c.email}</span>
+                                  <td key={colName} className="px-4 py-3 font-mono text-xs truncate border-r border-gray-100 min-w-[240px] max-w-[340px]" title={c.email}>
+                                    <span className={c.status === 'invalid' ? 'text-red-600 font-bold' : 'text-gray-600 font-medium'}>{c.email}</span>
                                   </td>
                                 );
                               }
 
                               const val = c.rawFields?.[colName];
-                              let displayVal = '—';
-                              if (val !== undefined && val !== null) {
-                                if (typeof val === 'object') {
-                                  displayVal = JSON.stringify(val);
-                                } else {
-                                  displayVal = String(val);
-                                }
+                              const formatted = formatFieldValue(val);
+
+                              if (formatted.url) {
+                                return (
+                                  <td key={colName} className="px-4 py-3 text-xs truncate border-r border-gray-100 min-w-[180px] max-w-[280px]">
+                                    <a
+                                      href={formatted.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-brand-600 hover:text-brand-800 hover:underline inline-flex items-center gap-1 font-medium max-w-full truncate"
+                                      title={formatted.url}
+                                    >
+                                      <span className="truncate">{formatted.text}</span>
+                                      <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                                    </a>
+                                  </td>
+                                );
                               }
+
                               return (
-                                <td key={colName} className="px-4 py-3 text-xs text-gray-500 truncate" title={displayVal}>
-                                  {displayVal}
+                                <td key={colName} className="px-4 py-3 text-xs text-gray-600 truncate border-r border-gray-100 min-w-[180px] max-w-[280px]" title={formatted.text}>
+                                  {formatted.text}
                                 </td>
                               );
                             })}
-                            <td className="px-4 py-3">
+                            {/* Status td */}
+                            <td className="px-4 py-3 min-w-[120px] w-32 border-r border-gray-100">
                               <span className="flex items-center gap-1.5">
                                 {statusIcon(c.status)}
                                 <span className="capitalize text-xs font-medium">{c.status}</span>
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            {/* Sticky Actions td */}
+                            <td className="sticky right-0 z-10 bg-white group-hover:bg-[#f8f9fc] px-4 py-3 min-w-[100px] w-28 text-right border-l border-gray-200 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => startEdit(actualIndex, c.name, c.email)}
-                                  className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-brand-600 transition-all hover:bg-gray-100"
+                                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-brand-600 transition-all"
                                   title="Edit contact"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => deleteContact(actualIndex)}
-                                  className="p-1.5 hover:bg-gray-150 rounded-lg text-gray-500 hover:text-red-600 transition-all hover:bg-gray-100"
+                                  className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 transition-all"
                                   title="Delete contact"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1346,20 +1544,30 @@ export default function SharePointContacts() {
                   </table>
                 </div>
 
-                {filteredTotal > 20 && (
-                  <div className="pt-3 text-center border-t border-gray-100 mt-2">
-                    <button
-                      onClick={() => setShowAllContacts(!showAllContacts)}
-                      className="text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1 mx-auto font-semibold transition-colors"
-                    >
-                      {showAllContacts ? (
-                        <><ChevronUp className="w-3.5 h-3.5" /> Show less</>
-                      ) : (
-                        <><ChevronDown className="w-3.5 h-3.5" /> Show all {filteredTotal} contacts</>
-                      )}
-                    </button>
+                {/* Footer Controls / Counter */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-100 text-xs text-gray-500 mt-2">
+                  <div>
+                    Showing <span className="font-bold text-gray-900">{visibleContacts.length}</span> of <span className="font-bold text-gray-900">{filteredTotal}</span> records {filteredTotal !== contacts.length ? `(filtered from ${contacts.length} total)` : ''}
                   </div>
-                )}
+                  {filteredTotal > visibleContacts.length && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDisplayLimit((prev) => (typeof prev === 'number' ? prev + 100 : 'all'))}
+                        className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-3 py-1 rounded-lg transition-colors"
+                      >
+                        + Load next 100
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDisplayLimit('all')}
+                        className="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold px-3 py-1 rounded-lg transition-colors"
+                      >
+                        Show all {filteredTotal} records
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>

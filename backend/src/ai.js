@@ -31,6 +31,23 @@ async function generateRecipientDraft({ masterPrompt, contactData }) {
   // Surface every URL-looking field in the SharePoint row (company website, LinkedIn,
   // or any other link) so the model knows exactly what to look up with web_search.
   const urlFields = Object.entries(contactData || {})
+    .map(([key, value]) => {
+      if (value && typeof value === 'object') {
+        const u = value.Url || value.url || value.Description || value.description;
+        return [key, u ? String(u).trim() : ''];
+      }
+      const str = String(value || '').trim();
+      if (str.startsWith('{') && str.endsWith('}') && (str.includes('"Url"') || str.includes('"Description"') || str.includes('"url"') || str.includes('"description"'))) {
+        try {
+          const parsed = JSON.parse(str);
+          const u = parsed.Url || parsed.url || parsed.Description || parsed.description;
+          return [key, u ? String(u).trim() : ''];
+        } catch {
+          return [key, str];
+        }
+      }
+      return [key, str];
+    })
     .filter(([, value]) => typeof value === 'string' && /^https?:\/\//i.test(value.trim()))
     .map(([key, value]) => `${key}: ${value.trim()}`);
 
