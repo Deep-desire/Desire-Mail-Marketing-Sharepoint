@@ -549,7 +549,7 @@ apiRouter.get('/campaigns/stats/dashboard', catchAsync(async (req, res) => {
   await authenticate(req);
   const [totalCampaigns, totalTemplates, totalEmailsSent, totalFailedEmails] = await Promise.all([
     prisma.campaign.count(),
-    prisma.template.count(),
+    prisma.template.count({ where: { name: { not: 'AI Dynamic Draft Template' } } }),
     prisma.recipient.count({ where: { status: 'sent' } }),
     prisma.recipient.count({ where: { status: 'failed' } }),
   ]);
