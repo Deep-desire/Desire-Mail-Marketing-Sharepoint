@@ -595,8 +595,6 @@ apiRouter.post('/campaigns', catchAsync(async (req, res) => {
     return res.status(400).json({ message: 'templateId is required when AI draft generation is disabled' });
   }
 
-  
-
   if (isAiGenerated && !aiPrompt) {
     return res.status(400).json({ message: 'aiPrompt is required when AI draft generation is enabled' });
   }
