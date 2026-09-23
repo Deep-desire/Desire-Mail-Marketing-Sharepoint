@@ -8,6 +8,7 @@ const prisma = new PrismaClient({
   },
 });
 
+
 const ContactStatus = {
   valid: 'valid',
   invalid: 'invalid',
